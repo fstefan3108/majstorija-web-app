@@ -1,0 +1,6 @@
+@WebProdavnica.API_HostAddress = http://localhost:5114
+
+GET {{WebProdavnica.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
