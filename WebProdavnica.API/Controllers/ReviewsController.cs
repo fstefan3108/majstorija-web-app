@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using WebProdavnica.BusinessLayer;
 using WebProdavnica.Entities;
-using WebProdavnica.DAL.Abstract;
 
 namespace WebProdavnica.API.Controllers
 {
@@ -8,80 +8,84 @@ namespace WebProdavnica.API.Controllers
     [Route("api/[controller]")]
     public class ReviewsController : ControllerBase
     {
-        private readonly IReviewRepository _reviewRepository;
+        private readonly ReviewService _reviewService;
 
-        public ReviewsController(IReviewRepository reviewRepository)
+        public ReviewsController(ReviewService reviewService)
         {
-            _reviewRepository = reviewRepository;
-        }
-
-        // GET: api/reviews
-        [HttpGet]
-        public IActionResult GetAllReviews()
-        {
-            var reviews = _reviewRepository.GetAll();
-            return Ok(reviews);
-        }
-
-        // GET: api/reviews/5
-        [HttpGet("{id}")]
-        public IActionResult GetReviewById(int id)
-        {
-            var review = _reviewRepository.GetById(id);
-            if (review == null)
-                return NotFound(new { message = "Review not found" });
-
-            return Ok(review);
-        }
-
-        // GET: api/reviews/craftsman/5
-        [HttpGet("craftsman/{craftsmanId}")]
-        public IActionResult GetReviewsByCraftsman(int craftsmanId)
-        {
-            var reviews = _reviewRepository.GetByCraftsmanId(craftsmanId);
-            return Ok(reviews);
+            _reviewService = reviewService;
         }
 
         // POST: api/reviews
         [HttpPost]
-        public IActionResult CreateReview([FromBody] Review review)
+        public IActionResult Create([FromBody] Review review)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            try
+            {
+                // Validacija ratinga
+                if (review.Rating < 1 || review.Rating > 5)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Ocena mora biti između 1 i 5"
+                    });
+                }
 
-            var success = _reviewRepository.Add(review);
-            if (success)
-                return CreatedAtAction(nameof(GetReviewById), new { id = review.Id }, review);
+                bool success = _reviewService.Add(review);
 
-            return BadRequest(new { message = "Failed to create review" });
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Recenzija uspešno dodata!",
+                        data = review
+                    });
+                }
+
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Dodavanje recenzije nije uspelo"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
-        // PUT: api/reviews/5
-        [HttpPut("{id}")]
-        public IActionResult UpdateReview(int id, [FromBody] Review review)
+        // GET: api/reviews/craftsman/5
+        [HttpGet("craftsman/{craftsmanId}")]
+        public IActionResult GetByCraftsman(int craftsmanId)
         {
-            if (id != review.Id)
-                return BadRequest(new { message = "ID mismatch" });
+            try
+            {
+                var reviews = _reviewService.GetByCraftsman(craftsmanId);
 
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var success = _reviewRepository.Update(review);
-            if (success)
-                return Ok(review);
-
-            return NotFound(new { message = "Review not found" });
-        }
-
-        // DELETE: api/reviews/5
-        [HttpDelete("{id}")]
-        public IActionResult DeleteReview(int id)
-        {
-            var success = _reviewRepository.Delete(id);
-            if (success)
-                return NoContent();
-
-            return NotFound(new { message = "Review not found" });
+                return Ok(new
+                {
+                    success = true,
+                    craftsmanId = craftsmanId,
+                    data = reviews,
+                    count = reviews.Count,
+                    averageRating = reviews.Count > 0
+                        ? Math.Round(reviews.Average(r => r.Rating), 2)
+                        : 0
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
     }
 }

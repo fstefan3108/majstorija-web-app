@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using WebProdavnica.BusinessLayer;
 using WebProdavnica.Entities;
-using WebProdavnica.DAL.Abstract;
 
 namespace WebProdavnica.API.Controllers
 {
@@ -8,80 +8,72 @@ namespace WebProdavnica.API.Controllers
     [Route("api/[controller]")]
     public class PaymentsController : ControllerBase
     {
-        private readonly IPaymentRepository _paymentRepository;
+        private readonly PaymentService _paymentService;
 
-        public PaymentsController(IPaymentRepository paymentRepository)
+        public PaymentsController(PaymentService paymentService)
         {
-            _paymentRepository = paymentRepository;
-        }
-
-        // GET: api/payments
-        [HttpGet]
-        public IActionResult GetAllPayments()
-        {
-            var payments = _paymentRepository.GetAll();
-            return Ok(payments);
-        }
-
-        // GET: api/payments/5
-        [HttpGet("{id}")]
-        public IActionResult GetPaymentById(int id)
-        {
-            var payment = _paymentRepository.GetById(id);
-            if (payment == null)
-                return NotFound(new { message = "Payment not found" });
-
-            return Ok(payment);
-        }
-
-        // GET: api/payments/user/5
-        [HttpGet("user/{userId}")]
-        public IActionResult GetPaymentsByUser(int userId)
-        {
-            var payments = _paymentRepository.GetByUserId(userId);
-            return Ok(payments);
+            _paymentService = paymentService;
         }
 
         // POST: api/payments
         [HttpPost]
-        public IActionResult CreatePayment([FromBody] Payment payment)
+        public IActionResult Create([FromBody] Payment payment)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            try
+            {
+                bool success = _paymentService.Add(payment);
 
-            var success = _paymentRepository.Add(payment);
-            if (success)
-                return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, payment);
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Uplata uspešno evidentirana!",
+                        data = payment
+                    });
+                }
 
-            return BadRequest(new { message = "Failed to create payment" });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Evidencija uplate nije uspela"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
-        // PUT: api/payments/5
-        [HttpPut("{id}")]
-        public IActionResult UpdatePayment(int id, [FromBody] Payment payment)
+        // GET: api/payments/job/5
+        [HttpGet("job/{jobId}")]
+        public IActionResult GetByJob(int jobId)
         {
-            if (id != payment.Id)
-                return BadRequest(new { message = "ID mismatch" });
+            try
+            {
+                var payments = _paymentService.GetByJob(jobId);
 
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var success = _paymentRepository.Update(payment);
-            if (success)
-                return Ok(payment);
-
-            return NotFound(new { message = "Payment not found" });
-        }
-
-        // DELETE: api/payments/5
-        [HttpDelete("{id}")]
-        public IActionResult DeletePayment(int id)
-        {
-            var success = _paymentRepository.Delete(id);
-            if (success)
-                return NoContent();
-
-            return NotFound(new { message = "Payment not found" });
+                return Ok(new
+                {
+                    success = true,
+                    jobId = jobId,
+                    data = payments,
+                    count = payments.Count,
+                    totalAmount = payments.Sum(p => p.Amount)
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
     }
 }

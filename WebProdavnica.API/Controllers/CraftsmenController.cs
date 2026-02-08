@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using WebProdavnica.BusinessLayer;
 using WebProdavnica.Entities;
-using WebProdavnica.DAL.Abstract;
 
 namespace WebProdavnica.API.Controllers
 {
@@ -8,80 +8,236 @@ namespace WebProdavnica.API.Controllers
     [Route("api/[controller]")]
     public class CraftsmenController : ControllerBase
     {
-        private readonly ICraftsmanRepository _craftsmanRepository;
+        private readonly CraftsmanService _craftsmanService;
 
-        public CraftsmenController(ICraftsmanRepository craftsmanRepository)
+        public CraftsmenController(CraftsmanService craftsmanService)
         {
-            _craftsmanRepository = craftsmanRepository;
-        }
-
-        // GET: api/craftsmen
-        [HttpGet]
-        public IActionResult GetAllCraftsmen()
-        {
-            var craftsmen = _craftsmanRepository.GetAll();
-            return Ok(craftsmen);
-        }
-
-        // GET: api/craftsmen/5
-        [HttpGet("{id}")]
-        public IActionResult GetCraftsmanById(int id)
-        {
-            var craftsman = _craftsmanRepository.GetById(id);
-            if (craftsman == null)
-                return NotFound(new { message = "Craftsman not found" });
-
-            return Ok(craftsman);
-        }
-
-        // GET: api/craftsmen/search?profession=plumber
-        [HttpGet("search")]
-        public IActionResult SearchCraftsmen([FromQuery] string profession, [FromQuery] string location)
-        {
-            var craftsmen = _craftsmanRepository.Search(profession, location);
-            return Ok(craftsmen);
+            _craftsmanService = craftsmanService;
         }
 
         // POST: api/craftsmen
         [HttpPost]
-        public IActionResult CreateCraftsman([FromBody] Craftsman craftsman)
+        public IActionResult Create([FromBody] Craftsman craftsman)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            try
+            {
+                bool success = _craftsmanService.Add(craftsman);
 
-            var success = _craftsmanRepository.Add(craftsman);
-            if (success)
-                return CreatedAtAction(nameof(GetCraftsmanById), new { id = craftsman.Id }, craftsman);
+                if (success)
+                {
+                    return CreatedAtAction(
+                        nameof(GetById),
+                        new { id = craftsman.CraftsmanId },
+                        new
+                        {
+                            success = true,
+                            message = "Zanatlija uspešno dodat!",
+                            data = craftsman
+                        });
+                }
 
-            return BadRequest(new { message = "Failed to create craftsman" });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Dodavanje nije uspelo"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
+        }
+
+        // GET: api/craftsmen
+        [HttpGet]
+        public IActionResult GetAll()
+        {
+            try
+            {
+                var craftsmen = _craftsmanService.GetAll();
+                return Ok(new
+                {
+                    success = true,
+                    data = craftsmen,
+                    count = craftsmen.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
+        }
+
+        // GET: api/craftsmen/5
+        [HttpGet("{id}")]
+        public IActionResult GetById(int id)
+        {
+            try
+            {
+                var craftsman = _craftsmanService.Get(id);
+
+                if (craftsman == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = $"Zanatlija sa ID {id} nije pronađen"
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = craftsman
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
+        }
+
+        // GET: api/craftsmen/profession/stolar
+        [HttpGet("profession/{profession}")]
+        public IActionResult GetByProfession(string profession)
+        {
+            try
+            {
+                var craftsmen = _craftsmanService.GetAll()
+                    .Where(c => c.Profession.ToLower() == profession.ToLower())
+                    .ToList();
+
+                return Ok(new
+                {
+                    success = true,
+                    profession = profession,
+                    data = craftsmen,
+                    count = craftsmen.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
+        }
+
+        // GET: api/craftsmen/location/beograd
+        [HttpGet("location/{location}")]
+        public IActionResult GetByLocation(string location)
+        {
+            try
+            {
+                var craftsmen = _craftsmanService.GetAll()
+                    .Where(c => c.Location.ToLower().Contains(location.ToLower()))
+                    .ToList();
+
+                return Ok(new
+                {
+                    success = true,
+                    location = location,
+                    data = craftsmen,
+                    count = craftsmen.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
         // PUT: api/craftsmen/5
         [HttpPut("{id}")]
-        public IActionResult UpdateCraftsman(int id, [FromBody] Craftsman craftsman)
+        public IActionResult Update(int id, [FromBody] Craftsman craftsman)
         {
-            if (id != craftsman.Id)
-                return BadRequest(new { message = "ID mismatch" });
+            try
+            {
+                if (id != craftsman.CraftsmanId)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "ID se ne poklapa"
+                    });
+                }
 
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+                bool success = _craftsmanService.Update(craftsman);
 
-            var success = _craftsmanRepository.Update(craftsman);
-            if (success)
-                return Ok(craftsman);
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Zanatlija uspešno ažuriran"
+                    });
+                }
 
-            return NotFound(new { message = "Craftsman not found" });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Ažuriranje nije uspelo"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
         // DELETE: api/craftsmen/5
         [HttpDelete("{id}")]
-        public IActionResult DeleteCraftsman(int id)
+        public IActionResult Delete(int id)
         {
-            var success = _craftsmanRepository.Delete(id);
-            if (success)
-                return NoContent();
+            try
+            {
+                bool success = _craftsmanService.Delete(id);
 
-            return NotFound(new { message = "Craftsman not found" });
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Zanatlija uspešno obrisan"
+                    });
+                }
+
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Zanatlija nije pronađen"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
     }
 }

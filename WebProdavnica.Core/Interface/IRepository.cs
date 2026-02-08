@@ -6,7 +6,13 @@ using System.Threading.Tasks;
 
 namespace WebProdavnica.Core.Interface
 {
-    internal class IRepository
+    public interface IRepository<T>
     {
+        // CRUD operacije
+        List<T> GetAll();
+        T Get(int id);
+        bool Add(T item);
+        bool Update(T item);
+        bool Delete(int Id);
     }
 }

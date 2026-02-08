@@ -7,14 +7,12 @@ using WebProdavnica.Entities;
 
 namespace WebProdavnica.DAL.Abstract
 {
-
-    public interface IUserRepository
+    public interface ICraftsmanRepository
     {
-        bool Add(User user);
-        bool Update(User user);
+        bool Add(Craftsman c);
+        bool Update(Craftsman c);
         bool Delete(int id);
-        User Get(int id);
-        List<User> GetAll();
-
+        Craftsman Get(int id);
+        List<Craftsman> GetAll();
     }
 }

@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using WebProdavnica.BusinessLayer;
 using WebProdavnica.Entities;
-using WebProdavnica.DAL.Abstract;
 
 namespace WebProdavnica.API.Controllers
 {
@@ -8,72 +8,176 @@ namespace WebProdavnica.API.Controllers
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
-        private readonly IUserRepository _userRepository;
+        private readonly UserService _userService;
 
-        public UsersController(IUserRepository userRepository)
+        public UsersController(UserService userService)
         {
-            _userRepository = userRepository;
+            _userService = userService;
+        }
+
+        // POST: api/users/register
+        [HttpPost("register")]
+        public IActionResult Register([FromBody] User user)
+        {
+            try
+            {
+                bool success = _userService.Add(user);
+
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Korisnik uspešno registrovan!"
+                    });
+                }
+
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Registracija nije uspela"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
         // GET: api/users
         [HttpGet]
-        public IActionResult GetAllUsers()
+        public IActionResult GetAll()
         {
-            var users = _userRepository.GetAll();
-            return Ok(users);
+            try
+            {
+                var users = _userService.GetAll();
+                return Ok(new
+                {
+                    success = true,
+                    data = users,
+                    count = users.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
         // GET: api/users/5
         [HttpGet("{id}")]
-        public IActionResult GetUserById(int id)
+        public IActionResult GetById(int id)
         {
-            var user = _userRepository.GetById(id);
-            if (user == null)
-                return NotFound(new { message = "User not found" });
+            try
+            {
+                var user = _userService.Get(id);
 
-            return Ok(user);
-        }
+                if (user == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = $"Korisnik sa ID {id} nije pronađen"
+                    });
+                }
 
-        // POST: api/users
-        [HttpPost]
-        public IActionResult CreateUser([FromBody] User user)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var success = _userRepository.Add(user);
-            if (success)
-                return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, user);
-
-            return BadRequest(new { message = "Failed to create user" });
+                return Ok(new
+                {
+                    success = true,
+                    data = user
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
         // PUT: api/users/5
         [HttpPut("{id}")]
-        public IActionResult UpdateUser(int id, [FromBody] User user)
+        public IActionResult Update(int id, [FromBody] User user)
         {
-            if (id != user.Id)
-                return BadRequest(new { message = "ID mismatch" });
+            try
+            {
+                if (id != user.UserId)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "ID se ne poklapa"
+                    });
+                }
 
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+                bool success = _userService.Update(user);
 
-            var success = _userRepository.Update(user);
-            if (success)
-                return Ok(user);
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Korisnik uspešno ažuriran"
+                    });
+                }
 
-            return NotFound(new { message = "User not found" });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Ažuriranje nije uspelo"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
 
         // DELETE: api/users/5
         [HttpDelete("{id}")]
-        public IActionResult DeleteUser(int id)
+        public IActionResult Delete(int id)
         {
-            var success = _userRepository.Delete(id);
-            if (success)
-                return NoContent();
+            try
+            {
+                bool success = _userService.Delete(id);
 
-            return NotFound(new { message = "User not found" });
+                if (success)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Korisnik uspešno obrisan"
+                    });
+                }
+
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Korisnik nije pronađen"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
+            }
         }
     }
 }
