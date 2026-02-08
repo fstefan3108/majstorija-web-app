@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace WebProdavnica.DAL.Abstract
 {
-    internal class IUserRepository
+    public class IUserRepository
     {
+
     }
 }

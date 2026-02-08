@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace WebProdavnica.Core.Constant
 {
-    internal class DataBaseConstant
+    public class DataBaseConstant
     {
+        public const string ConnectionString = "Data Source=DESKTOP-O0QNST7\\SQLEXPRESS;Initial Catalog=majstorija-local;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
     }
 }
