@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace WebProdavnica.Entities
 {
-    internal class Payment
+    public class Payment
     {
         public int PaymentID { get; set; }
         public decimal Amount { get; set; }
