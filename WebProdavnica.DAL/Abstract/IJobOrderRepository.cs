@@ -7,12 +7,12 @@ using WebProdavnica.Entities;
 
 namespace WebProdavnica.DAL.Abstract
 {
-    public interface IUserRepository
+    public interface IJobOrderRepository
     {
-        bool Add(User user);
-        bool Update(User user);
+        bool Add(JobOrder j);
+        bool Update(JobOrder j);
         bool Delete(int id);
-        User Get(int id);
-        List<User> GetAll();
+        JobOrder Get(int id);
+        List<JobOrder> GetAll();
     }
 }
