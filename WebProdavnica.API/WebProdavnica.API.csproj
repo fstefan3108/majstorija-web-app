@@ -13,6 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\WebProdavnica.BusinessLayer\WebProdavnica.BusinessLayer.csproj" />
     <ProjectReference Include="..\WebProdavnica.Core\WebProdavnica.Core.csproj" />
+    <ProjectReference Include="..\WebProdavnica.DAL\WebProdavnica.DAL.csproj" />
+    <ProjectReference Include="..\WebProdavnica.Entities\WebProdavnica.Entities.csproj" />
   </ItemGroup>
 
 </Project>
