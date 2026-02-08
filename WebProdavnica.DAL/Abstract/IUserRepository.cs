@@ -7,6 +7,7 @@ using WebProdavnica.Entities;
 
 namespace WebProdavnica.DAL.Abstract
 {
+
     public interface IUserRepository
     {
         bool Add(User user);
@@ -14,5 +15,6 @@ namespace WebProdavnica.DAL.Abstract
         bool Delete(int id);
         User Get(int id);
         List<User> GetAll();
+
     }
 }
