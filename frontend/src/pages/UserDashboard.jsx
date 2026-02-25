@@ -1,27 +1,23 @@
 import { useState, useEffect } from "react";
-import { MessageCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { MessageCircle, Search } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import WorkerProfile from "../components/WorkerProfile";
+import UserProfile from "../components/UserProfile";
 import ServicesTable from "../components/ServicesTable";
-import AddJobModal from "../components/AddJobModal";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
-export default function WorkerDashboard() {
-  const { user } = useAuth(); // Removed loading and navigate
+export default function UserDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const [workerData, setWorkerData] = useState(null);
-  const [originalWorkerData, setOriginalWorkerData] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [originalUserData, setOriginalUserData] = useState(null);
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // REMOVED: Redirect logic - Dashboard.jsx handles this now
-
-  // Fetch profile and jobs on mount
   useEffect(() => {
     if (user) {
       fetchProfile();
@@ -31,24 +27,18 @@ export default function WorkerDashboard() {
 
   const fetchProfile = async () => {
     try {
-      const response = await api.getCraftsmanProfile(user.id);
-      const craftsman = response.data || response;
+      const response = await api.getUserProfile(user.id);
+      const userProfile = response.data || response;
       
-      setOriginalWorkerData(craftsman);
+      setOriginalUserData(userProfile);
       
-      setWorkerData({
-        craftsmanId: craftsman.craftsmanId,
-        firstName: craftsman.firstName,
-        lastName: craftsman.lastName,
-        email: craftsman.email,
-        phone: craftsman.phone,
-        profession: craftsman.profession,
-        experience: craftsman.experience,
-        workingHours: craftsman.workingHours,
-        hourlyRate: craftsman.hourlyRate,
-        location: craftsman.location || '',
-        averageRating: craftsman.averageRating || 0,
-        ratingCount: craftsman.ratingCount || 0
+      setUserData({
+        userId: userProfile.userId,
+        firstName: userProfile.firstName,
+        lastName: userProfile.lastName,
+        email: userProfile.email,
+        phone: userProfile.phone,
+        location: userProfile.location || '',
       });
     } catch (err) {
       console.error('Error fetching profile:', err);
@@ -60,7 +50,7 @@ export default function WorkerDashboard() {
     setIsLoading(true);
     setError('');
     try {
-      const response = await api.getJobOrdersByCraftsman(user.id);
+      const response = await api.getJobOrdersByUser(user.id);
       const jobs = response.data || response;
       setServices(Array.isArray(jobs) ? jobs : []);
     } catch (err) {
@@ -74,23 +64,19 @@ export default function WorkerDashboard() {
 
   const handleProfileUpdate = async (updatedData) => {
     try {
-      const craftsmanUpdate = {
-        ...originalWorkerData,
+      const userUpdate = {
+        ...originalUserData,
         firstName: updatedData.firstName,
         lastName: updatedData.lastName,
         phone: updatedData.phone,
         location: updatedData.location,
-        profession: updatedData.profession,
-        experience: parseInt(updatedData.experience),
-        hourlyRate: parseFloat(updatedData.hourlyRate),
-        workingHours: updatedData.workingHours,
       };
 
-      const response = await api.updateCraftsman(user.id, craftsmanUpdate);
+      const response = await api.updateUser(user.id, userUpdate);
       
       if (response.success) {
-        setOriginalWorkerData(craftsmanUpdate);
-        setWorkerData(updatedData);
+        setOriginalUserData(userUpdate);
+        setUserData(updatedData);
         alert('Profil uspešno ažuriran!');
       }
     } catch (err) {
@@ -100,30 +86,11 @@ export default function WorkerDashboard() {
     }
   };
 
-  const handleAddService = () => {
-    setIsModalOpen(true);
+  const handleFindWorker = () => {
+    navigate('/browse-tasks');
   };
 
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-  };
-
-  const handleJobSubmit = async (jobOrder) => {
-    try {
-      const response = await api.createJobOrder(jobOrder);
-      console.log('Job created:', response);
-      
-      await fetchJobs();
-      
-      alert('Posao uspešno dodat!');
-    } catch (err) {
-      console.error('Error creating job:', err);
-      throw err;
-    }
-  };
-
-  // Show loading while fetching data
-  if (!workerData) {
+  if (!userData) {
     return (
       <div className="min-h-screen bg-[#121418] flex items-center justify-center">
         <div className="text-center">
@@ -142,10 +109,10 @@ export default function WorkerDashboard() {
         <div className="max-w-6xl mx-auto">
           <div className="mb-6 flex justify-between items-center">
             <div className="text-white">
-              <h1 className="text-2xl font-bold">Dobrodošli, {workerData.firstName}!</h1>
-              <p className="text-gray-400">Email: {workerData.email}</p>
+              <h1 className="text-2xl font-bold">Dobrodošli, {userData.firstName}!</h1>
+              <p className="text-gray-400">Email: {userData.email}</p>
             </div>
-            <Link to="/workers/chat">
+            <Link to="/chat">
               <button className="flex items-center gap-2 px-6 py-3 bg-[#2324fe] text-white rounded-lg hover:bg-[#1a1bca] transition">
                 <MessageCircle className="w-5 h-5" />
                 Moje Poruke
@@ -153,8 +120,8 @@ export default function WorkerDashboard() {
             </Link>
           </div>
 
-          <WorkerProfile 
-            data={workerData} 
+          <UserProfile 
+            data={userData} 
             onUpdate={handleProfileUpdate}
           />
 
@@ -173,7 +140,9 @@ export default function WorkerDashboard() {
             ) : (
               <ServicesTable 
                 services={services}
-                onAddService={handleAddService}
+                onAddService={handleFindWorker}
+                buttonText="Pronađi Majstora" // Custom button text for users
+                buttonIcon={<Search className="w-5 h-5" />} // Custom icon for users
               />
             )}
           </div>
@@ -181,13 +150,6 @@ export default function WorkerDashboard() {
       </main>
 
       <Footer />
-
-      <AddJobModal
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        onSubmit={handleJobSubmit}
-        craftsmanId={user.id}
-      />
     </div>
   );
 }
