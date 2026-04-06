@@ -1,12 +1,15 @@
-import { Plus, Trash2, AlertCircle, CheckCircle, XCircle, ChevronDown } from "lucide-react";
+import { Plus, Trash2, AlertCircle, CheckCircle, XCircle, ChevronDown, Timer } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const STATUS_OPTIONS = ["Zakazano", "U toku", "Završeno", "Otkazano"];
+const STATUS_OPTIONS = ["Zakazano", "U toku", "Pauzirano", "Ceka potvrdu", "Završeno", "Otkazano"];
 
 const STATUS_STYLES = {
-  "U toku":   "bg-blue-600/20 text-blue-400 border-blue-500/40",
-  "Zakazano": "bg-yellow-600/20 text-yellow-400 border-yellow-500/40",
-  "Završeno": "bg-green-600/20 text-green-400 border-green-500/40",
-  "Otkazano": "bg-red-600/20 text-red-400 border-red-500/40",
+  "U toku":        "bg-blue-600/20 text-blue-400 border-blue-500/40",
+  "Zakazano":      "bg-yellow-600/20 text-yellow-400 border-yellow-500/40",
+  "Završeno":      "bg-green-600/20 text-green-400 border-green-500/40",
+  "Otkazano":      "bg-red-600/20 text-red-400 border-red-500/40",
+  "Pauzirano":     "bg-orange-600/20 text-orange-400 border-orange-500/40",
+  "Ceka potvrdu":  "bg-purple-600/20 text-purple-400 border-purple-500/40",
 };
 
 const SELECT_OPTION_BG = {
@@ -79,6 +82,7 @@ export default function ServicesTable({
                 <th className="text-left text-gray-400 font-semibold py-3 px-4">Status</th>
                 <th className="text-left text-gray-400 font-semibold py-3 px-4">Hitno</th>
                 <th className="text-right text-gray-400 font-semibold py-3 px-4">Cena</th>
+                <th className="text-center text-gray-400 font-semibold py-3 px-4">Timer</th>
                 {onStatusChange && (
                   <th className="text-center text-gray-400 font-semibold py-3 px-4">Akcija</th>
                 )}
@@ -149,6 +153,20 @@ export default function ServicesTable({
 
                   <td className="py-4 px-4 text-right">
                     <span className="text-white font-semibold">{service.totalPrice.toLocaleString()} RSD</span>
+                  </td>
+
+                  <td className="py-4 px-4 text-center">
+                    {(service.status === 'U toku' || service.status === 'Pauzirano') ? (
+                      <Link
+                        to={`/job-timer/${service.jobId}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/40 rounded-lg text-xs font-semibold transition-all"
+                      >
+                        <Timer className="w-3.5 h-3.5" />
+                        Timer
+                      </Link>
+                    ) : (
+                      <span className="text-gray-600 text-xs">—</span>
+                    )}
                   </td>
 
                   {/* Prihvati / Odbij — samo za zakazano */}

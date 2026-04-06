@@ -10,11 +10,17 @@ namespace WebProdavnica.DAL.Abstract
     public interface IJobOrderRepository
     {
         bool Add(JobOrder j);
-        bool Update(JobOrder j);
         bool Delete(int id);
-        JobOrder Get(int id);
+        JobOrder? Get(int id);
         List<JobOrder> GetAll();
-
+        bool Update(JobOrder j);
         List<JobOrder> GetByCraftsmanId(int id);
+
+        // Timer operations
+        bool StartTimer(int jobId);
+        bool PauseTimer(int jobId);
+        bool ResumeTimer(int jobId);
+        TimerFinishResult FinishTimer(int jobId);
+        TimerState GetTimerState(int jobId);
     }
 }

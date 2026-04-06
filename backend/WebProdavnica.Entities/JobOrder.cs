@@ -14,8 +14,13 @@ namespace WebProdavnica.Entities
         public string? Status { get; set; }
         public bool Urgent { get; set; }
         public decimal TotalPrice { get; set; }
+        public decimal HourlyRate { get; set; }     
+        public int EstimatedHours { get; set; }
+        public DateTime? StartedAt { get; set; }     
+        public DateTime? EndedAt { get; set; }       
+        public int? ActualSeconds { get; set; }   
 
-        
+
         public int UserId { get; set; }
         public int CraftsmanId { get; set; }
 

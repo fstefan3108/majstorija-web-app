@@ -6,5 +6,6 @@ namespace WebProdavnica.BusinessLayer.Abstract
     {
         bool Add(Payment payment);
         List<Payment> GetByJob(int jobId);
+        bool UpdateStatus(int jobId, string newStatus);
     }
 }

@@ -29,6 +29,8 @@ namespace WebProdavnica.API.Controllers
                     JobDescription = request.JobDescription,
                     Urgent = request.Urgent,
                     TotalPrice = request.TotalPrice,
+                    HourlyRate = request.HourlyRate,     
+                    EstimatedHours = request.EstimatedHours,  
                     UserId = request.UserId,
                     CraftsmanId = request.CraftsmanId,
                     Status = request.Status ?? "zakazano",
@@ -296,6 +298,72 @@ namespace WebProdavnica.API.Controllers
                     success = false,
                     error = ex.Message
                 });
+            }
+        }
+
+        // GET /api/joborders/{id}/timer-state
+        [HttpGet("{id}/timer-state")]
+        public IActionResult GetTimerState(int id)
+        {
+            var job = _jobOrderService.Get(id);
+            if (job == null) return NotFound(new { success = false });
+
+            var state = _jobOrderService.GetTimerState(id);
+            return Ok(new
+            {
+                jobId = job.JobId,
+                status = job.Status,
+                jobDescription = job.JobDescription,
+                hourlyRate = job.HourlyRate,
+                estimatedHours = job.EstimatedHours,
+                estimatedPrice = job.TotalPrice,
+                accumulatedSeconds = state.AccumulatedSeconds,
+                currentIntervalStartedAt = state.CurrentIntervalStartedAt,
+            });
+        }
+
+        // POST /api/joborders/{id}/start
+        [HttpPost("{id}/start")]
+        public IActionResult Start(int id)
+        {
+            var ok = _jobOrderService.StartTimer(id);
+            return ok ? Ok(new { success = true }) : BadRequest(new { success = false });
+        }
+
+        // POST /api/joborders/{id}/pause
+        [HttpPost("{id}/pause")]
+        public IActionResult Pause(int id)
+        {
+            var ok = _jobOrderService.PauseTimer(id);
+            return ok ? Ok(new { success = true }) : BadRequest(new { success = false });
+        }
+
+        // POST /api/joborders/{id}/resume
+        [HttpPost("{id}/resume")]
+        public IActionResult Resume(int id)
+        {
+            var ok = _jobOrderService.ResumeTimer(id);
+            return ok ? Ok(new { success = true }) : BadRequest(new { success = false });
+        }
+
+        // POST /api/joborders/{id}/finish
+        [HttpPost("{id}/finish")]
+        public IActionResult Finish(int id)
+        {
+            try
+            {
+                var result = _jobOrderService.FinishTimer(id);
+                return Ok(new
+                {
+                    success = true,
+                    actualSeconds = result.ActualSeconds,
+                    actualPrice = result.ActualPrice,
+                    formattedDuration = result.FormattedDuration,
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, error = ex.Message });
             }
         }
 

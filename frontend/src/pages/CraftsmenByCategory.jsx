@@ -118,6 +118,8 @@ const HireModal = ({ craftsman, onClose, navigate }) => {
           jobDescription: booking.jobDescription,
           urgent: booking.urgent,
           totalPrice: Number(totalPrice),
+          hourlyRate: craftsman.hourlyRate, 
+          estimatedHours: booking.estimatedHours,     
           userId: Number(userId),
           craftsmanId: Number(craftsman.craftsmanId)
         })

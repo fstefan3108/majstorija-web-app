@@ -1,8 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Stripe;
-using Stripe.Checkout;
 using WebProdavnica.BusinessLayer.Abstract;
 using WebProdavnica.Entities;
+using WebProdavnica.Entities.DTOs;
 
 namespace WebProdavnica.API.Controllers
 {
@@ -11,182 +10,232 @@ namespace WebProdavnica.API.Controllers
     public class PaymentsController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
-        private readonly IConfiguration _configuration;
+        private readonly ICardTokenService _cardTokenService;
+        private readonly IJobOrderService _jobOrderService;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _config;
 
-        public PaymentsController(IPaymentService paymentService, IConfiguration configuration)
+        public PaymentsController(
+            IPaymentService paymentService,
+            ICardTokenService cardTokenService,
+            IJobOrderService jobOrderService,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration config)
         {
             _paymentService = paymentService;
-            _configuration = configuration;
-            StripeConfiguration.ApiKey = _configuration["Stripe:SecretKey"];
+            _cardTokenService = cardTokenService;
+            _jobOrderService = jobOrderService;
+            _httpClientFactory = httpClientFactory;
+            _config = config;
         }
 
-        // POST: api/payments/create-checkout-session
-        [HttpPost("create-checkout-session")]
-        public IActionResult CreateCheckoutSession([FromBody] CheckoutRequest request)
+        // GET /api/payments/card-token/{userId}
+        // Frontend calls this on Checkout load to check if the user has a saved card.
+        [HttpGet("card-token/{userId}")]
+        public IActionResult GetCardToken(int userId)
         {
-            try
-            {
-                var options = new SessionCreateOptions
-                {
-                    PaymentMethodTypes = new List<string> { "card" },
-                    LineItems = new List<SessionLineItemOptions>
-                    {
-                        new SessionLineItemOptions
-                        {
-                            PriceData = new SessionLineItemPriceDataOptions
-                            {
-                                UnitAmount = (long)(request.Amount / 117 * 100), // Stripe koristi cente
-                                Currency = "eur",
-                                ProductData = new SessionLineItemPriceDataProductDataOptions
-                                {
-                                    Name = $"Usluga: {request.JobDescription}",
-                                    Description = $"Majstor: {request.CraftsmanName}"
-                                }
-                            },
-                            Quantity = 1
-                        }
-                    },
-                    Mode = "payment",
-                    SuccessUrl = $"http://localhost:5173/payment-success?jobId={request.JobId}&session_id={{CHECKOUT_SESSION_ID}}",
-                    CancelUrl = $"http://localhost:5173/payment-cancel?jobId={request.JobId}",
-                    Metadata = new Dictionary<string, string>
-                    {
-                        { "jobId", request.JobId.ToString() },
-                        { "userId", request.UserId.ToString() },
-                        { "craftsmanId", request.CraftsmanId.ToString() }
-                    }
-                };
+            var token = _cardTokenService.GetByUserId(userId);
+            if (token == null)
+                return Ok(new { hasToken = false });
 
-                var service = new SessionService();
-                Session session = service.Create(options);
-
-                return Ok(new
-                {
-                    success = true,
-                    sessionId = session.Id,
-                    url = session.Url
-                });
-            }
-            catch (StripeException ex)
+            return Ok(new
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    success = false,
-                    error = ex.Message
-                });
-            }
+                hasToken = true,
+                cardBrand = token.CardBrand,
+                maskedNumber = token.MaskedNumber,
+            });
         }
 
-        // POST: api/payments/confirm
-        // Poziva se nakon uspešnog plaćanja da sačuvamo u bazu
-        [HttpPost("confirm")]
-        public IActionResult ConfirmPayment([FromBody] ConfirmPaymentRequest request)
+        // POST /api/payments/initiate
+        // Phase 1+2: tokenize card (first time) + pre-authorize with 50% buffer.
+        [HttpPost("initiate")]
+        public async Task<IActionResult> Initiate([FromBody] InitiatePaymentRequest request)
         {
-            try
-            {
-                StripeConfiguration.ApiKey = _configuration["Stripe:SecretKey"];
-                var service = new SessionService();
-                Session session = service.Get(request.SessionId);
+            var isMock = _config.GetValue<bool>("AllSecure:MockPayments");
+            var preauthAmount = request.Amount * 1.5m;  // 50% buffer
 
-                if (session.PaymentStatus != "paid")
+            if (isMock)
+            {
+                // Save a mock card token if user doesn't have one yet
+                var existing = _cardTokenService.GetByUserId(request.UserId);
+                if (existing == null && request.CardNumber != null)
                 {
-                    return BadRequest(new { success = false, message = "Plaćanje nije završeno" });
+                    var masked = "************" + request.CardNumber.Replace(" ", "")[^4..];
+                    _cardTokenService.Save(request.UserId, Guid.NewGuid().ToString("N"), request.CardBrand, masked);
                 }
 
-                var payment = new Payment
+                var mockTransactionId = Guid.NewGuid().ToString("N");
+                _paymentService.Add(new Payment
                 {
+                    JobId = request.JobId,
                     Amount = request.Amount,
-                    PaymentDate = DateTime.Now,
-                    PaymentMethod = "Card",
-                    PaymentStatus = "Completed",
-                    JobId = request.JobId
-                };
-
-                bool success = _paymentService.Add(payment);
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Uplata uspešno evidentirana!",
-                    data = payment
+                    PreauthorizedAmount = preauthAmount,
+                    Currency = "RSD",
+                    PaymentMethod = request.CardBrand,
+                    PaymentStatus = "Preauthorized",
+                    TransactionId = mockTransactionId,
                 });
+                return Ok(new { status = "preauthorized", transactionId = mockTransactionId, preauthAmount });
             }
-            catch (Exception ex)
+
+            // ── Real AllSecure call ───────────────────────────────────────────
+            var entityId = _config["AllSecure:EntityId"];
+            var shopperResultUrl = _config["AllSecure:ShopperResultUrl"];
+            var existingToken = _cardTokenService.GetByUserId(request.UserId);
+
+            var formParams = new Dictionary<string, string>
             {
-                return StatusCode(500, new { success = false, error = ex.Message });
+                ["entityId"] = entityId,
+                ["amount"] = preauthAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                ["currency"] = "RSD",
+                ["paymentType"] = "PA",   // Pre-Authorization — reserves funds, does not capture
+                ["merchantTransactionId"] = Guid.NewGuid().ToString("N"),
+                ["shopperResultUrl"] = shopperResultUrl,
+                ["threeDSecure.channel"] = "BROWSER",
+            };
+
+            if (existingToken != null)
+            {
+                // Returning user — charge via stored token, no card form needed
+                formParams["registrations[0].id"] = existingToken.RegistrationId;
+            }
+            else
+            {
+                // First-time user — send card data and ask AllSecure to tokenize
+                formParams["paymentBrand"] = request.CardBrand!.ToUpper();
+                formParams["card.number"] = request.CardNumber!;
+                formParams["card.expiryMonth"] = request.CardExpiryMonth!;
+                formParams["card.expiryYear"] = request.CardExpiryYear!;
+                formParams["card.cvv"] = request.CardCvv!;
+                formParams["createRegistration"] = "true";
+            }
+
+            var client = _httpClientFactory.CreateClient("AllSecure");
+            var response = await client.PostAsync("/v1/payments", new FormUrlEncodedContent(formParams));
+            var body = await response.Content.ReadAsStringAsync();
+            var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
+
+            var resultCode = json.GetProperty("result").GetProperty("code").GetString();
+            var transactionId = json.GetProperty("id").GetString();
+
+            if (resultCode == "000.000.000")
+            {
+                // Save token if this was a first-time card registration
+                if (existingToken == null && json.TryGetProperty("registrationId", out var regEl))
+                {
+                    var masked = "************" + request.CardNumber![^4..];
+                    _cardTokenService.Save(request.UserId, regEl.GetString()!, request.CardBrand, masked);
+                }
+
+                _paymentService.Add(new Payment
+                {
+                    JobId = request.JobId,
+                    Amount = request.Amount,
+                    PreauthorizedAmount = preauthAmount,
+                    Currency = "RSD",
+                    PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
+                    PaymentStatus = "Preauthorized",
+                    TransactionId = transactionId,
+                });
+
+                return Ok(new { status = "preauthorized", transactionId, preauthAmount });
+            }
+            else if (resultCode == "000.200.000")
+            {
+                var redirectUrl = json.GetProperty("redirect").GetProperty("url").GetString();
+                _paymentService.Add(new Payment
+                {
+                    JobId = request.JobId,
+                    Amount = request.Amount,
+                    PreauthorizedAmount = preauthAmount,
+                    Currency = "RSD",
+                    PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
+                    PaymentStatus = "Pending",
+                    TransactionId = transactionId,
+                    RedirectUrl = redirectUrl,
+                });
+                return Ok(new { status = "redirect", redirectUrl, transactionId });
+            }
+            else
+            {
+                var description = json.GetProperty("result").GetProperty("description").GetString();
+                return BadRequest(new { status = "failed", code = resultCode, description });
             }
         }
 
-        // POST: api/payments
-        [HttpPost]
-        public IActionResult Create([FromBody] Payment payment)
+        // GET /api/payments/status/{transactionId}
+        [HttpGet("status/{transactionId}")]
+        public async Task<IActionResult> CheckStatus(string transactionId)
         {
-            try
-            {
-                bool success = _paymentService.Add(payment);
-                if (success)
-                    return Ok(new { success = true, message = "Uplata uspešno evidentirana!", data = payment });
+            var isMock = _config.GetValue<bool>("AllSecure:MockPayments");
+            if (isMock)
+                return Ok(new { success = true, code = "000.000.000" });
 
-                return BadRequest(new { success = false, message = "Evidencija uplate nije uspela" });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { success = false, error = ex.Message });
-            }
+            var entityId = _config["AllSecure:EntityId"];
+            var client = _httpClientFactory.CreateClient("AllSecure");
+            var response = await client.GetAsync($"/v1/payments/{transactionId}?entityId={entityId}");
+            var body = await response.Content.ReadAsStringAsync();
+            var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
+            var resultCode = json.GetProperty("result").GetProperty("code").GetString();
+
+            return Ok(new { success = resultCode == "000.000.000", code = resultCode });
         }
 
-        // GET: api/payments/job/5
+        // GET /api/payments/job/{jobId}
         [HttpGet("job/{jobId}")]
         public IActionResult GetByJob(int jobId)
         {
-            try
-            {
-                var payments = _paymentService.GetByJob(jobId);
-                return Ok(new
-                {
-                    success = true,
-                    jobId = jobId,
-                    data = payments,
-                    count = payments.Count,
-                    totalAmount = payments.Sum(p => p.Amount)
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { success = false, error = ex.Message });
-            }
+            return Ok(_paymentService.GetByJob(jobId));
         }
 
-        // GET: api/payments/publishable-key
-        [HttpGet("publishable-key")]
-        public IActionResult GetPublishableKey()
+        // POST /api/payments/{jobId}/capture
+        // Phase 4: Client confirms the job is done → capture the pre-authorized amount.
+        [HttpPost("{jobId}/capture")]
+        public async Task<IActionResult> Capture(int jobId)
         {
-            return Ok(new { publishableKey = _configuration["Stripe:PublishableKey"] });
+            var isMock = _config.GetValue<bool>("AllSecure:MockPayments");
+
+            var payments = _paymentService.GetByJob(jobId);
+            var payment = payments.LastOrDefault();
+            if (payment == null)
+                return NotFound(new { success = false, message = "Plaćanje nije pronađeno" });
+
+            var job = _jobOrderService.Get(jobId);
+            if (job == null)
+                return NotFound(new { success = false, message = "Posao nije pronađen" });
+
+            if (!isMock)
+            {
+                var entityId = _config["AllSecure:EntityId"];
+                var formParams = new Dictionary<string, string>
+                {
+                    ["entityId"] = entityId,
+                    ["amount"] = job.TotalPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                    ["currency"] = "RSD",
+                    ["paymentType"] = "CP",
+                };
+
+                var client = _httpClientFactory.CreateClient("AllSecure");
+                var response = await client.PostAsync(
+                    $"/v1/payments/{payment.TransactionId}",
+                    new FormUrlEncodedContent(formParams));
+                var body = await response.Content.ReadAsStringAsync();
+                var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
+                var resultCode = json.GetProperty("result").GetProperty("code").GetString();
+
+                if (resultCode != "000.000.000")
+                {
+                    var description = json.GetProperty("result").GetProperty("description").GetString();
+                    return BadRequest(new { success = false, code = resultCode, description });
+                }
+            }
+
+            _paymentService.UpdateStatus(jobId, "Captured");
+
+            job.Status = "Završeno";
+            _jobOrderService.Update(job);
+
+            return Ok(new { success = true, actualPrice = job.TotalPrice });
         }
-    }
-
-    public class CheckoutRequest
-    {
-        public int JobId { get; set; }
-        public int UserId { get; set; }
-        public int CraftsmanId { get; set; }
-        public decimal Amount { get; set; }
-        public string JobDescription { get; set; } = string.Empty;
-        public string CraftsmanName { get; set; } = string.Empty;
-    }
-
-    public class ConfirmPaymentRequest
-    {
-        public string SessionId { get; set; } = string.Empty;
-        public int JobId { get; set; }
-        public decimal Amount { get; set; }
     }
 }

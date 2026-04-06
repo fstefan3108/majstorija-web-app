@@ -13,42 +13,28 @@ export default function PaymentSuccess() {
   const [error, setError] = useState(null);
 
   const jobId = searchParams.get('jobId');
-  const sessionId = searchParams.get('session_id');
-  const token = localStorage.getItem('accessToken');
 
   useEffect(() => {
-    if (!jobId || !sessionId) {
-      navigate('/');
-      return;
-    }
+    const params = new URLSearchParams(window.location.search);
+    const resourcePath = params.get('resourcePath');
 
-    const confirmPayment = async () => {
-      try {
-        const amount = parseFloat(sessionStorage.getItem('checkoutAmount') || '0');
-
-        await fetch(`${API_BASE}/api/payments/confirm`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            sessionId,
-            jobId: parseInt(jobId),
-            amount
-          })
-        });
-
-        sessionStorage.removeItem('checkoutAmount');
-      } catch (err) {
-        setError('Plaćanje je prošlo ali nije evidentirano. Kontaktirajte podršku.');
-      } finally {
+    if (resourcePath) {
+        // 3DS redirect came back — verify server-side
+        const transactionId = resourcePath.split('/').pop();
+        fetch(`${API_BASE}/api/payments/status/${transactionId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) setError('Potvrda plaćanja nije uspela. Kontaktirajte podršku.');
+                sessionStorage.removeItem('pendingTransactionId');
+                sessionStorage.removeItem('pendingJobId');
+            })
+            .catch(() => setError('Greška pri proveri statusa plaćanja.'))
+            .finally(() => setConfirming(false));   // always stop spinner
+    } else {
+        // Direct success (mock or no 3DS) — just stop spinner
         setConfirming(false);
-      }
-    };
-
-    confirmPayment();
-  }, [jobId, sessionId]);
+    }
+}, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
@@ -78,9 +64,9 @@ export default function PaymentSuccess() {
               <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle className="w-10 h-10 text-green-400" />
               </div>
-              <h2 className="text-white font-bold text-3xl mb-3">Plaćanje uspešno!</h2>
-              <p className="text-gray-400 mb-2">Vaša porudžbina je potvrđena.</p>
-              <p className="text-gray-500 text-sm mb-8">Majstor će vas kontaktirati uskoro.</p>
+              <h2 className="text-white font-bold text-3xl mb-3">Rezervacija potvrđena!</h2>
+              <p className="text-gray-400 mb-2">Sredstva su rezervisana na vašoj kartici.</p>
+              <p className="text-gray-500 text-sm mb-8">Naplata će biti izvršena kada majstor završi posao.</p>
               <div className="flex flex-col gap-3">
                 <Link
                   to="/users/dashboard"

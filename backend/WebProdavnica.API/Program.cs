@@ -26,6 +26,7 @@ builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IJobOrderRepository, JobOrderRepository>();
 builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
 builder.Services.AddScoped<IChatRepository, ChatRepository>();
+builder.Services.AddScoped<ICardTokenRepository, CardTokenRepository>();  
 
 //  REGISTER BUSINESS LAYER SERVICES
 builder.Services.AddScoped<IUserService, UserService>();
@@ -35,6 +36,7 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<ICardTokenService, CardTokenService>();
 
 // da React može da poziva API
 builder.Services.AddCors(options =>
@@ -53,6 +55,12 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()
         .AllowCredentials();
     });
+});
+
+builder.Services.AddHttpClient("AllSecure", client =>
+{
+    var config = builder.Configuration.GetSection("AllSecure");
+    client.BaseAddress = new Uri(config["BaseUrl"]);
 });
 
 builder.Services.AddEndpointsApiExplorer();

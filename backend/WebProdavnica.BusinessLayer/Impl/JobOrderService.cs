@@ -59,5 +59,10 @@ namespace WebProdavnica.BusinessLayer.Impl
             job.Status = status;
             return _jobOrderRepository.Update(job);
         }
+        public bool StartTimer(int jobId) => _jobOrderRepository.StartTimer(jobId);
+        public bool PauseTimer(int jobId) => _jobOrderRepository.PauseTimer(jobId);
+        public bool ResumeTimer(int jobId) => _jobOrderRepository.ResumeTimer(jobId);
+        public TimerFinishResult FinishTimer(int jobId) => _jobOrderRepository.FinishTimer(jobId);
+        public TimerState GetTimerState(int jobId) => _jobOrderRepository.GetTimerState(jobId);
     }
 }

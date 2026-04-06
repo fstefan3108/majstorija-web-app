@@ -11,5 +11,6 @@ namespace WebProdavnica.DAL.Abstract
     {
         bool Add(Payment p);
         List<Payment> GetByJob(int jobId);
+        bool UpdateStatus(int jobId, string newStatus);
     }
 }

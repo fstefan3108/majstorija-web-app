@@ -13,6 +13,7 @@ import PaymentCancel from './pages/PaymentCancel';
 import ProfileSettings from './pages/ProfileSettings';
 import CraftsmanProfile from './pages/CraftsmanProfile';
 import Dashboard from './pages/Dashboard';
+import JobTimer from './pages/JobTimer';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
         <Route path="/profile/settings" element={<ProfileSettings />} />
         <Route path="/profile/settings" element={<ProfileSettings />} />
         <Route path="/craftsman/:id" element={<CraftsmanProfile />} />
+        <Route path="/job-timer/:jobId" element={<JobTimer />} />
       </Routes>
     </BrowserRouter>
   );

@@ -19,6 +19,12 @@ namespace WebProdavnica.Entities.DTOs
         [Range(0.00, 10000000, ErrorMessage = "Cena mora biti pozitivan broj")]
         public decimal TotalPrice { get; set; }
 
+        [Range(0.01, 10000000, ErrorMessage = "Satnica mora biti pozitivan broj")]
+        public decimal HourlyRate { get; set; }
+
+        [Range(1, 100, ErrorMessage = "Procena mora biti između 1 i 100 sati")]
+        public int EstimatedHours { get; set; } 
+
         [Range(1, int.MaxValue, ErrorMessage = "UserId mora biti validan")]
         public int UserId { get; set; }
 
