@@ -7,22 +7,28 @@ namespace WebProdavnica.DAL.Impl
 {
     public class JobOrderRepository : IJobOrderRepository
     {
-        // ── Helper: maps a SqlDataReader row to JobOrder ──────────────────────
+        // Explicit column list used in every SELECT — never use SELECT * to avoid column-order fragility.
+        private const string SelectColumns = @"
+            job_id, scheduled_date, job_description, status, urgent,
+            total_price, user_id, craftsman_id, hourly_rate, estimated_hours,
+            started_at, ended_at, actual_seconds";
+
+        // Indices match SelectColumns above (0-based).
         private static JobOrder Map(SqlDataReader r) => new JobOrder
         {
-            JobId = r.GetInt32(0),
-            ScheduledDate = r.GetDateTime(1),
-            JobDescription = r.IsDBNull(2) ? null : r.GetString(2),
-            Status = r.IsDBNull(3) ? null : r.GetString(3),
-            Urgent = r.GetBoolean(4),
-            TotalPrice = r.GetDecimal(5),
-            UserId = r.GetInt32(6),
-            CraftsmanId = r.GetInt32(7),
-            HourlyRate = r.IsDBNull(8) ? 0 : r.GetDecimal(8),
-            EstimatedHours = r.IsDBNull(9) ? 0 : r.GetInt32(9),
-            StartedAt = r.IsDBNull(10) ? null : r.GetDateTime(10),
-            EndedAt = r.IsDBNull(11) ? null : r.GetDateTime(11),
-            ActualSeconds = r.IsDBNull(12) ? null : r.GetInt32(12),
+            JobId          = r.GetInt32(0),
+            ScheduledDate  = r.GetDateTime(1),
+            JobDescription = r.IsDBNull(2)  ? null : r.GetString(2),
+            Status         = r.IsDBNull(3)  ? null : r.GetString(3),
+            Urgent         = r.GetBoolean(4),
+            TotalPrice     = r.GetDecimal(5),
+            UserId         = r.GetInt32(6),
+            CraftsmanId    = r.GetInt32(7),
+            HourlyRate     = r.IsDBNull(8)  ? 0    : r.GetDecimal(8),
+            EstimatedHours = r.IsDBNull(9)  ? 0    : r.GetInt32(9),
+            StartedAt      = r.IsDBNull(10) ? null : r.GetDateTime(10),
+            EndedAt        = r.IsDBNull(11) ? null : r.GetDateTime(11),
+            ActualSeconds  = r.IsDBNull(12) ? null : r.GetInt32(12),
         };
 
         // ── CRUD ──────────────────────────────────────────────────────────────
@@ -69,7 +75,7 @@ namespace WebProdavnica.DAL.Impl
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM dbo.job_orders WHERE job_id=@id";
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.job_orders WHERE job_id=@id";
             cmd.Parameters.AddWithValue("@id", id);
             var r = cmd.ExecuteReader();
             return r.Read() ? Map(r) : null;
@@ -80,7 +86,7 @@ namespace WebProdavnica.DAL.Impl
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM dbo.job_orders";
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.job_orders";
             var r = cmd.ExecuteReader();
             var list = new List<JobOrder>();
             while (r.Read()) list.Add(Map(r));
@@ -111,7 +117,7 @@ namespace WebProdavnica.DAL.Impl
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM dbo.job_orders WHERE craftsman_id=@cid";
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.job_orders WHERE craftsman_id=@cid";
             cmd.Parameters.AddWithValue("@cid", id);
             var r = cmd.ExecuteReader();
             var list = new List<JobOrder>();

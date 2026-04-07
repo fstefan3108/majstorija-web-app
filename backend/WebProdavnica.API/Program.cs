@@ -60,8 +60,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpClient("AllSecure", client =>
 {
     var config = builder.Configuration.GetSection("AllSecure");
-    client.BaseAddress = new Uri(config["BaseUrl"]);
+    client.BaseAddress = new Uri(config["BaseUrl"]!);
 });
+builder.Services.AddScoped<WebProdavnica.API.Services.AllSecureClient>();
+builder.Services.AddHostedService<WebProdavnica.API.Services.AutoCaptureService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

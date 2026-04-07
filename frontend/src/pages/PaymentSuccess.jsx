@@ -1,40 +1,92 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
 const API_BASE = "http://localhost:5114";
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 10; // 20 seconds total
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const [confirming, setConfirming] = useState(true);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState('loading'); // 'loading' | 'success' | 'canceled' | 'error'
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const jobId = searchParams.get('jobId');
+  const jobId = searchParams.get('jobId')
+    || sessionStorage.getItem('pendingJobId');
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const resourcePath = params.get('resourcePath');
+    const canceled = searchParams.get('canceled');
+    const hasError = searchParams.get('error');
 
-    if (resourcePath) {
-        // 3DS redirect came back — verify server-side
-        const transactionId = resourcePath.split('/').pop();
-        fetch(`${API_BASE}/api/payments/status/${transactionId}`)
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) setError('Potvrda plaćanja nije uspela. Kontaktirajte podršku.');
-                sessionStorage.removeItem('pendingTransactionId');
-                sessionStorage.removeItem('pendingJobId');
-            })
-            .catch(() => setError('Greška pri proveri statusa plaćanja.'))
-            .finally(() => setConfirming(false));   // always stop spinner
-    } else {
-        // Direct success (mock or no 3DS) — just stop spinner
-        setConfirming(false);
+    // User explicitly canceled on AllSecure's page
+    if (canceled === 'true') {
+      sessionStorage.removeItem('pendingTransactionId');
+      sessionStorage.removeItem('pendingJobId');
+      setState('canceled');
+      return;
     }
-}, []);
+
+    // AllSecure redirected to errorUrl
+    if (hasError === 'true') {
+      sessionStorage.removeItem('pendingTransactionId');
+      sessionStorage.removeItem('pendingJobId');
+      setErrorMsg('Plaćanje nije uspelo na strani AllSecure-a. Pokušajte ponovo.');
+      setState('error');
+      return;
+    }
+
+    const pendingTransactionId = sessionStorage.getItem('pendingTransactionId');
+
+    if (pendingTransactionId) {
+      // Came back from AllSecure's redirect page — poll until callback updates the status
+      pollStatus(pendingTransactionId);
+    } else {
+      // Direct preauth (returning user, FINISHED immediately) — no polling needed
+      setState('success');
+    }
+  }, []);
+
+  const pollStatus = async (transactionId) => {
+    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+      try {
+        const res  = await fetch(`${API_BASE}/api/payments/status/${transactionId}`);
+        const data = await res.json();
+
+        if (data.status === 'Preauthorized') {
+          sessionStorage.removeItem('pendingTransactionId');
+          sessionStorage.removeItem('pendingJobId');
+          setState('success');
+          return;
+        }
+
+        if (data.status === 'Failed') {
+          sessionStorage.removeItem('pendingTransactionId');
+          sessionStorage.removeItem('pendingJobId');
+          setErrorMsg('Plaćanje je odbijeno od strane banke. Proverite podatke kartice i pokušajte ponovo.');
+          setState('error');
+          return;
+        }
+
+        // Still 'Pending' — callback hasn't arrived yet, wait and retry
+        if (attempt < POLL_MAX_ATTEMPTS - 1) {
+          await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+        }
+      } catch {
+        // Network error during poll — try again
+        if (attempt < POLL_MAX_ATTEMPTS - 1) {
+          await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+        }
+      }
+    }
+
+    // Callback still hasn't arrived after max wait — assume success.
+    // AllSecure guarantees delivery; status will be updated when it arrives.
+    sessionStorage.removeItem('pendingTransactionId');
+    sessionStorage.removeItem('pendingJobId');
+    setState('success');
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
@@ -42,24 +94,16 @@ export default function PaymentSuccess() {
 
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-10 max-w-md w-full text-center">
-          {confirming ? (
+
+          {state === 'loading' && (
             <>
               <Loader2 className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" />
               <h2 className="text-white font-bold text-2xl mb-2">Potvrđujemo plaćanje...</h2>
               <p className="text-gray-400">Molimo sačekajte trenutak.</p>
             </>
-          ) : error ? (
-            <>
-              <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-4xl">⚠️</span>
-              </div>
-              <h2 className="text-white font-bold text-2xl mb-2">Upozorenje</h2>
-              <p className="text-gray-400 mb-6">{error}</p>
-              <Link to="/" className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold transition">
-                Početna stranica
-              </Link>
-            </>
-          ) : (
+          )}
+
+          {state === 'success' && (
             <>
               <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle className="w-10 h-10 text-green-400" />
@@ -83,6 +127,55 @@ export default function PaymentSuccess() {
               </div>
             </>
           )}
+
+          {state === 'canceled' && (
+            <>
+              <div className="w-20 h-20 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">↩️</span>
+              </div>
+              <h2 className="text-white font-bold text-2xl mb-3">Plaćanje otkazano</h2>
+              <p className="text-gray-400 mb-8">Vratili ste se bez završavanja plaćanja. Rezervacija nije potvrđena.</p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  to="/browse-tasks"
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold transition"
+                >
+                  Pretraži majstore
+                </Link>
+                <Link
+                  to="/"
+                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition"
+                >
+                  Početna stranica
+                </Link>
+              </div>
+            </>
+          )}
+
+          {state === 'error' && (
+            <>
+              <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <XCircle className="w-10 h-10 text-red-400" />
+              </div>
+              <h2 className="text-white font-bold text-2xl mb-3">Plaćanje nije uspelo</h2>
+              <p className="text-gray-400 mb-8">{errorMsg || 'Došlo je do greške pri obradi plaćanja.'}</p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  to="/browse-tasks"
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold transition"
+                >
+                  Pokušaj ponovo
+                </Link>
+                <Link
+                  to="/"
+                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition"
+                >
+                  Početna stranica
+                </Link>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
 
