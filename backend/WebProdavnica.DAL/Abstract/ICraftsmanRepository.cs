@@ -1,20 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using WebProdavnica.Entities;
+﻿using WebProdavnica.Entities;
 
 namespace WebProdavnica.DAL.Abstract
 {
     public interface ICraftsmanRepository
     {
-        bool Add(Craftsman c);
-        bool Update(Craftsman c);
-        bool Delete(int id);
-        Craftsman Get(int id);
-        List<Craftsman> GetAll();
-
+        bool Add(Craftsman craftsman);
+        Craftsman? Get(int id);    
         Craftsman? GetByEmail(string email);
+        List<Craftsman> GetAll();
+        bool Update(Craftsman craftsman);
+        bool Delete(int id);
+        bool UpdateRating(int craftsmanId);
     }
 }

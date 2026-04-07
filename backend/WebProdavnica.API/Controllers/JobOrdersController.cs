@@ -11,10 +11,14 @@ namespace WebProdavnica.API.Controllers
     public class JobOrdersController : ControllerBase
     {
         private readonly IJobOrderService _jobOrderService;
+        private readonly ICraftsmanService _craftsmanService;
+        private readonly IReviewService _reviewService;
 
-        public JobOrdersController(IJobOrderService jobOrderService)
+        public JobOrdersController(IJobOrderService jobOrderService, ICraftsmanService craftsmanService, IReviewService reviewService)
         {
             _jobOrderService = jobOrderService;
+            _craftsmanService = craftsmanService;
+            _reviewService = reviewService;
         }
 
         // POST: api/joborders
@@ -397,6 +401,63 @@ namespace WebProdavnica.API.Controllers
                     success = false,
                     error = ex.Message
                 });
+            }
+        }
+
+        [HttpPost("{id}/review")]
+        public IActionResult Review(int id, [FromBody] ReviewRequest request)
+        {
+            try
+            {
+                var jobOrder = _jobOrderService.Get(id);
+                if (jobOrder == null)
+                    return NotFound(new { success = false, message = "Radni nalog nije pronađen" });
+
+                if (!string.Equals(jobOrder.Status, "završeno", StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { success = false, message = "Ocena se može dodati samo nakon završenog posla" });
+
+                // Proveri da li već postoji recenzija za ovaj posao
+                var existingReview = _reviewService.GetReviewByJobId(id);
+                if (existingReview != null)
+                    return BadRequest(new { success = false, message = "Ovaj posao je već ocenjen" });
+
+                if (jobOrder.UserId != request.UserId)
+                    return BadRequest(new { success = false, message = "Samo korisnik koji je naručio posao može oceniti" });
+
+                if (request.Rating < 1 || request.Rating > 5)
+                    return BadRequest(new { success = false, message = "Ocena mora biti između 1 i 5" });
+
+                var review = new Review
+                {
+                    JobId = id,
+                    UserId = request.UserId,
+                    Rating = request.Rating,
+                    Comment = request.Comment
+                };
+
+                if (!_reviewService.AddReview(review))
+                    return BadRequest(new { success = false, message = "Neuspešno snimanje ocene" });
+
+                // Izračunaj nove statistike za respons
+                var allReviews = _reviewService.GetReviewsByCraftsmanId(jobOrder.CraftsmanId);
+                decimal newAverage = allReviews.Any() ? (decimal)allReviews.Average(r => r.Rating) : 0;
+                int newCount = allReviews.Count;
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Ocena i komentar uspešno dodati",
+                    data = new
+                    {
+                        reviewId = review.ReviewId,
+                        averageRating = newAverage,
+                        ratingCount = newCount
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, error = ex.Message });
             }
         }
     }

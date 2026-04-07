@@ -57,24 +57,22 @@ const CraftsmanProfile = () => {
   const { user } = useAuth();
   
   const [craftsman, setCraftsman] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [selectedRating, setSelectedRating] = useState(0);
-  const [submittingRating, setSubmittingRating] = useState(false);
-  const [ratingError, setRatingError] = useState('');
-  const [hasRated, setHasRated] = useState(false);
 
   useEffect(() => {
     const fetchCraftsmanData = async () => {
       setLoading(true);
       setError(null);
       try {
+        // Fetch craftsman profile
         const profileResponse = await fetch(`${API_BASE}/api/craftsmen/${id}`);
         if (!profileResponse.ok) throw new Error('Failed to fetch craftsman profile');
         const profileJson = await profileResponse.json();
         const craftsmanData = profileJson.data || profileJson;
         
+        // Fetch job orders
         const jobsResponse = await fetch(`${API_BASE}/api/joborders/craftsman/${id}`);
         if (jobsResponse.ok) {
           const jobsJson = await jobsResponse.json();
@@ -85,6 +83,12 @@ const CraftsmanProfile = () => {
         }
         
         setCraftsman(craftsmanData);
+
+        // Fetch reviews for this craftsman
+        const reviewsResponse = await api.getCraftsmanReviews(id);
+        const reviewsData = reviewsResponse.success ? reviewsResponse.data : [];
+        setReviews(reviewsData);
+
       } catch (err) {
         setError(err.message);
       } finally {
@@ -93,40 +97,6 @@ const CraftsmanProfile = () => {
     };
     fetchCraftsmanData();
   }, [id]);
-
-  const handleSubmitRating = async () => {
-    if (selectedRating === 0) {
-      setRatingError('odaberite ocenu');
-      return;
-    }
-
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-
-    setSubmittingRating(true);
-    setRatingError('');
-
-    try {
-      const response = await api.rateCraftsman(parseInt(id), selectedRating);
-      
-      setCraftsman(prev => ({
-        ...prev,
-        averageRating: response.data.averageRating,
-        ratingCount: response.data.ratingCount
-      }));
-
-      setHasRated(true);
-      setShowRatingModal(false);
-      setSelectedRating(0);
-      alert('Hvala na oceni!');
-    } catch (err) {
-      setRatingError(err.message || 'Greška pri dodavanju ocene');
-    } finally {
-      setSubmittingRating(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -179,57 +149,6 @@ const CraftsmanProfile = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
       <Header />
 
-      {showRatingModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-md w-full">
-            <h3 className="text-2xl font-bold text-white mb-4">Ocenite majstora</h3>
-            
-            {ratingError && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-400 text-sm">
-                {ratingError}
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-4 mb-6">
-              <StarRating 
-                rating={selectedRating} 
-                size="lg" 
-                interactive 
-                onRate={setSelectedRating}
-              />
-              <p className="text-gray-400 text-center">
-                {selectedRating === 0 && 'Kliknite na zvezde da ocenite'}
-                {selectedRating === 1 && '⭐ Loše'}
-                {selectedRating === 2 && '⭐⭐ Može bolje'}
-                {selectedRating === 3 && '⭐⭐⭐ Dobro'}
-                {selectedRating === 4 && '⭐⭐⭐⭐ Vrlo dobro'}
-                {selectedRating === 5 && '⭐⭐⭐⭐⭐ Odlično!'}
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowRatingModal(false);
-                  setSelectedRating(0);
-                  setRatingError('');
-                }}
-                className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
-              >
-                Otkaži
-              </button>
-              <button
-                onClick={handleSubmitRating}
-                disabled={submittingRating || selectedRating === 0}
-                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submittingRating ? 'Slanje...' : 'Potvrdi'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 px-4 sm:px-6 lg:px-8 py-10">
         <div className="max-w-5xl mx-auto">
           
@@ -252,37 +171,22 @@ const CraftsmanProfile = () => {
                   <h1 className="text-4xl font-bold text-white">
                     {craftsman.firstName} {craftsman.lastName}
                   </h1>
-                  
-                  {user && user.role !== 'Craftsman' && (
-                    <button
-                      onClick={() => setShowRatingModal(true)}
-                      disabled={hasRated}
-                      className={`flex items-center gap-2 px-4 py-2 ${
-                        hasRated 
-                          ? 'bg-gray-600 cursor-not-allowed opacity-50' 
-                          : 'bg-blue-600 hover:bg-blue-500'
-                      } text-white rounded-lg transition text-sm font-medium`}
-                    >
-                      <Star className="w-4 h-4" />
-                      {hasRated ? 'Već ste ocenili' : 'Oceni majstora'}
-                    </button>
-                  )}
                 </div>
 
                 <p className="text-blue-400 text-xl font-medium capitalize mb-4">{craftsman.profession}</p>
                 
                 <div className="flex items-center gap-3 mb-6">
-                  {craftsman.averageRating != null ? (
+                  {reviews.length > 0 ? (
                     <>
-                      <StarRating rating={craftsman.averageRating} size="lg" />
-                      <span className="text-white font-bold text-2xl">{craftsman.averageRating.toFixed(1)}</span>
-                      <span className="text-gray-400">/ 5.0</span>
-                      <span className="text-gray-500">
-                        ({craftsman.ratingCount || 0} {craftsman.ratingCount === 1 ? 'ocena' : 'ocena'})
+                      <StarRating rating={reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length} size="lg" />
+                      <span className="text-white font-bold text-2xl">
+                        {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
                       </span>
+                      <span className="text-gray-400">/ 5.0</span>
+                      <span className="text-gray-400">({reviews.length} recenzija)</span>
                     </>
                   ) : (
-                    <span className="text-gray-500">Još nema ocena.</span>
+                    <span className="text-gray-400">Još nema recenzija</span>
                   )}
                 </div>
 
@@ -448,6 +352,54 @@ const CraftsmanProfile = () => {
                     Još {completedJobs.length - 5} završenih poslova
                   </p>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Reviews Section */}
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <Star className="w-6 h-6 text-yellow-400" />
+              Recenzije
+              <span className="text-sm font-normal text-gray-400 ml-2">({reviews.length})</span>
+            </h2>
+
+            {reviews.length === 0 ? (
+              <div className="text-center py-12">
+                <Star className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">Još nema recenzija za ovog majstora.</p>
+                <p className="text-gray-500 text-sm mt-1">Recenzije se mogu ostaviti nakon završetka posla.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((review) => (
+                  <div
+                    key={review.reviewId}
+                    className="bg-gray-900/50 border border-gray-700 rounded-xl p-5"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        {review.user?.firstName?.[0]}{review.user?.lastName?.[0]}
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-white font-medium">
+                            {review.user?.firstName} {review.user?.lastName}
+                          </span>
+                          <StarRating rating={review.rating} size="sm" />
+                          <span className="text-gray-400 text-sm">
+                            {new Date(review.createdAt).toLocaleDateString('sr-RS')}
+                          </span>
+                        </div>
+
+                        {review.comment && (
+                          <p className="text-gray-300 leading-relaxed">{review.comment}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

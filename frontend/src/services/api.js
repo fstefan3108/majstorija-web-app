@@ -137,6 +137,17 @@ async updateUser(id, userData) {
     body: JSON.stringify({ status }),
   });
 }
+
+  async submitJobReview(jobOrderId, rating, comment, userId) {
+    return this.request(`/joborders/${jobOrderId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, comment, userId }),
+    });
+  }
+
+  async getCraftsmanReviews(craftsmanId) {
+    return this.request(`/craftsmen/${craftsmanId}/reviews`);
+  }
 }
 
 export default new ApiService();

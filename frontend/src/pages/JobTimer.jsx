@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Pause, Square, Clock, Loader2, CheckCircle } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import ReviewForm from '../components/ReviewForm';
 
 const API_BASE = 'http://localhost:5114';
 
@@ -25,7 +26,15 @@ export default function JobTimer() {
   const [finishResult, setFinishResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
   const timerRef = useRef(null);
+
+  const status = job?.status?.toLowerCase() ?? '';
+  const isNotStarted = !intervalStartedAt && accumulated === 0 && status !== 'pauzirano' && status !== 'ceka potvrdu';
+  const isActive = !!intervalStartedAt;
+  const isPaused = !intervalStartedAt && accumulated > 0 && status !== 'ceka potvrdu';
+  const isAwaiting = status === 'ceka potvrdu';
+  const currentPrice = ((job?.hourlyRate ?? 0) * (elapsed / 3600)).toFixed(2);
 
   const loadTimerState = async () => {
     try {
@@ -51,6 +60,13 @@ export default function JobTimer() {
   useEffect(() => {
     loadTimerState();
   }, [jobId]);
+
+  // Check if job is completed and show review form
+    useEffect(() => {
+      if (finishResult) {
+        setShowReviewForm(true);
+      }
+    }, [finishResult]);
 
   // Live tick — only when there is an open interval
   useEffect(() => {
@@ -85,11 +101,15 @@ export default function JobTimer() {
     }
   };
 
-  const currentPrice = job ? ((elapsed / 3600) * job.hourlyRate).toFixed(2) : '0.00';
-  const isActive = !!intervalStartedAt;
-  const isPaused = job?.status === 'Pauzirano';
-  const isNotStarted = job?.status === 'U toku' && !isActive && accumulated === 0;
-  const isAwaiting = job?.status === 'Ceka potvrdu';
+  const handleReviewSubmitted = () => {
+    setShowReviewForm(false);
+    // Optionally reload job data or show success message
+    alert('Hvala vam na recenziji! Vaše mišljenje nam je važno.');
+  };
+
+  const handleReviewSkipped = () => {
+    setShowReviewForm(false);
+  };
 
   if (loading) {
     return (
@@ -152,6 +172,17 @@ export default function JobTimer() {
                 {Number(finishResult.actualPrice).toLocaleString()} RSD
               </p>
               <p className="text-gray-500 text-sm">Čeka se potvrda klijenta</p>
+            </div>
+          )}
+
+          {/* Review Form */}
+          {showReviewForm && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+              <ReviewForm
+                jobOrderId={parseInt(jobId)}
+                onReviewSubmitted={handleReviewSubmitted}
+                onCancel={handleReviewSkipped}
+              />
             </div>
           )}
 

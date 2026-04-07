@@ -28,5 +28,6 @@ namespace WebProdavnica.Entities
         public User? User { get; set; }
         public Craftsman? Craftsman { get; set; }
         public ICollection<Payment> Payments { get; set; } = new List<Payment>();
+        public Review? Review { get; set; }
     }
 }

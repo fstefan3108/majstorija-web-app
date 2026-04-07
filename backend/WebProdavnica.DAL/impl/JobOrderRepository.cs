@@ -69,7 +69,12 @@ namespace WebProdavnica.DAL.Impl
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM dbo.job_orders WHERE job_id=@id";
+            cmd.CommandText = @"
+                SELECT job_id, scheduled_date, job_description, status, urgent, total_price,
+                user_id, craftsman_id, hourly_rate, estimated_hours,
+                started_at, ended_at, actual_seconds
+                FROM dbo.job_orders
+                WHERE job_id=@id";
             cmd.Parameters.AddWithValue("@id", id);
             var r = cmd.ExecuteReader();
             return r.Read() ? Map(r) : null;
@@ -80,7 +85,11 @@ namespace WebProdavnica.DAL.Impl
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM dbo.job_orders";
+            cmd.CommandText = @"
+                SELECT job_id, scheduled_date, job_description, status, urgent, total_price,
+                user_id, craftsman_id, hourly_rate, estimated_hours,
+                started_at, ended_at, actual_seconds
+                FROM dbo.job_orders";
             var r = cmd.ExecuteReader();
             var list = new List<JobOrder>();
             while (r.Read()) list.Add(Map(r));
@@ -94,14 +103,27 @@ namespace WebProdavnica.DAL.Impl
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 UPDATE dbo.job_orders
-                SET scheduled_date=@sd, job_description=@jd, status=@st,
-                    urgent=@u, total_price=@tp
+                SET scheduled_date=@sd,
+                    job_description=@jd,
+                    status=@st,
+                    urgent=@u,
+                    total_price=@tp,
+                    hourly_rate=@hr,
+                    estimated_hours=@eh,
+                    started_at=@sa,
+                    ended_at=@ea,
+                    actual_seconds=@as
                 WHERE job_id=@id";
             cmd.Parameters.AddWithValue("@sd", j.ScheduledDate);
             cmd.Parameters.AddWithValue("@jd", j.JobDescription ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@st", j.Status ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@u", j.Urgent);
             cmd.Parameters.AddWithValue("@tp", j.TotalPrice);
+            cmd.Parameters.AddWithValue("@hr", j.HourlyRate);
+            cmd.Parameters.AddWithValue("@eh", j.EstimatedHours);
+            cmd.Parameters.AddWithValue("@sa", j.StartedAt ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ea", j.EndedAt ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@as", j.ActualSeconds ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@id", j.JobId);
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -111,7 +133,12 @@ namespace WebProdavnica.DAL.Impl
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM dbo.job_orders WHERE craftsman_id=@cid";
+            cmd.CommandText = @"
+                SELECT job_id, scheduled_date, job_description, status, urgent, total_price,
+                user_id, craftsman_id, hourly_rate, estimated_hours,
+                started_at, ended_at, actual_seconds
+                FROM dbo.job_orders
+                WHERE craftsman_id=@cid";
             cmd.Parameters.AddWithValue("@cid", id);
             var r = cmd.ExecuteReader();
             var list = new List<JobOrder>();

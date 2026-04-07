@@ -6,10 +6,12 @@ namespace WebProdavnica.BusinessLayer.Impl
     public class CraftsmanService : Abstract.ICraftsmanService
     {
         private readonly ICraftsmanRepository _craftsmanRepository;
+        private readonly Abstract.IReviewService _reviewService;
 
-        public CraftsmanService(ICraftsmanRepository craftsmanRepository)
+        public CraftsmanService(ICraftsmanRepository craftsmanRepository, Abstract.IReviewService reviewService)
         {
             _craftsmanRepository = craftsmanRepository;
+            _reviewService = reviewService;
         }
 
         public bool Add(Craftsman craftsman) => _craftsmanRepository.Add(craftsman);
@@ -32,6 +34,19 @@ namespace WebProdavnica.BusinessLayer.Impl
                 .Where(c => c.Location.ToLower().Contains(location.ToLower()))
                 .ToList();
 
+        // Pomoćne metode za izračunavanje ocena
+        private decimal? GetAverageRating(int craftsmanId)
+        {
+            var reviews = _reviewService.GetReviewsByCraftsmanId(craftsmanId);
+            if (!reviews.Any()) return null;
+            return (decimal)reviews.Average(r => r.Rating);
+        }
+
+        private int GetRatingCount(int craftsmanId)
+        {
+            return _reviewService.GetReviewsByCraftsmanId(craftsmanId).Count;
+        }
+
         // Pretraga po vise kriterijuma - glavna funkcionalnost platforme
         public List<Craftsman> Search(string? profession, string? location, decimal? maxRate, decimal? minRating)
         {
@@ -47,9 +62,9 @@ namespace WebProdavnica.BusinessLayer.Impl
                 all = all.Where(c => c.HourlyRate <= maxRate.Value).ToList();
 
             if (minRating.HasValue)
-                all = all.Where(c => c.AverageRating >= minRating.Value).ToList();
+                all = all.Where(c => GetAverageRating(c.CraftsmanId) >= minRating.Value).ToList();
 
-            return all.OrderByDescending(c => c.AverageRating).ToList();
+            return all.OrderByDescending(c => GetAverageRating(c.CraftsmanId) ?? 0).ToList();
         }
     }
 }

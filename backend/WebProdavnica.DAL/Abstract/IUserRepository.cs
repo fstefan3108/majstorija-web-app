@@ -1,22 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using WebProdavnica.Entities;
+﻿using WebProdavnica.Entities;
 
 namespace WebProdavnica.DAL.Abstract
 {
-
     public interface IUserRepository
     {
         bool Add(User user);
-        bool Update(User user);
-        bool Delete(int id);
-        User Get(int id);
-        List<User> GetAll();
+        User? Get(int id);          
         User? GetByEmail(string email);
-
+        List<User> GetAll();
+        bool Update(User user);
         bool UpdatePassword(int userId, string newPasswordHash);
+        bool Delete(int id);
     }
 }

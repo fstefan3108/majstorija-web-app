@@ -117,9 +117,9 @@ export default function WorkerDashboard() {
 
   if (!workerData) {
     return (
-      <div className="min-h-screen bg-[#121418] flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-[#2324fe] border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-400">Učitavanje...</p>
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function WorkerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#121418] flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
       <Header />
 
       <main className="flex-1 p-6 lg:p-10">
@@ -135,31 +135,33 @@ export default function WorkerDashboard() {
           <div className="mb-6 flex justify-between items-center">
             <div className="text-white">
               <h1 className="text-2xl font-bold">Dobrodošli, {workerData.firstName}!</h1>
-              <p className="text-gray-400">Email: {workerData.email}</p>
+              <p className="text-gray-300">Email: {workerData.email}</p>
             </div>
             <Link to="/workers/chat">
-              <button className="flex items-center gap-2 px-6 py-3 bg-[#2324fe] text-white rounded-lg hover:bg-[#1a1bca] transition">
+              <button className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold">
                 <MessageCircle className="w-5 h-5" />
                 Moje Poruke
               </button>
             </Link>
           </div>
 
-          <WorkerProfile
-            data={workerData}
-            onUpdate={handleProfileUpdate}
-          />
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
+            <WorkerProfile
+              data={workerData}
+              onUpdate={handleProfileUpdate}
+            />
+          </div>
 
           {error && (
-            <div className="mt-6 bg-red-500/20 border border-red-500 rounded-lg p-4">
-              <p className="text-red-500">{error}</p>
+            <div className="mt-6 bg-red-500/20 border border-red-500 rounded-2xl p-4">
+              <p className="text-red-400">{error}</p>
             </div>
           )}
 
-          <div className="mt-10">
+          <div className="mt-10 bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
             {isLoading ? (
-              <div className="bg-[#1e2028] rounded-2xl p-8 border border-gray-700 text-center">
-                <div className="animate-spin w-8 h-8 border-4 border-[#2324fe] border-t-transparent rounded-full mx-auto mb-4"></div>
+              <div className="text-center py-8">
+                <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                 <p className="text-gray-400">Učitavanje poslova...</p>
               </div>
             ) : (

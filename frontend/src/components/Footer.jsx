@@ -1,12 +1,11 @@
 import majstorijaLogoMain from "../assets/majstorijaLogoMain.png";
 import { Link } from 'react-router-dom';
+
 export default function Footer() {
     return (
-        <footer className="bg-[#121418] text-white py-12">
+        <footer className="bg-gray-900 border-t border-gray-700 text-white py-12">
             <div className="max-w-7xl mx-auto px-6">
-                {/* Main Footer Content */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-                    {/* Logo & Description */}
                     <div className="md:col-span-2">
                         <img src={majstorijaLogoMain} alt="Majstorija" className="max-w-[180px] mb-4"/>
                         <p className="text-gray-400 text-sm max-w-md">
@@ -15,17 +14,16 @@ export default function Footer() {
                         </p>
                     </div>
 
-                    {/* Quick Links */}
                     <div>
-                    <h3 className="font-semibold text-lg mb-4">Brzi Linkovi</h3>
-                    <ul className="space-y-2">
-                        <li><Link to="/about" className="text-gray-400 hover:text-white transition">O Nama</Link></li>
-                        <li><Link to="/dashboard" className="text-gray-400 hover:text-white transition">Za Korisnike</Link></li>
-                        <li><Link to="/dashboard" className="text-gray-400 hover:text-white transition">Za Majstore</Link></li>
-                         <li><Link to="/contact" className="text-gray-400 hover:text-white transition">Kontakt</Link></li>
-                    </ul>
+                        <h3 className="font-semibold text-lg mb-4">Brzi Linkovi</h3>
+                        <ul className="space-y-2">
+                            <li><Link to="/about" className="text-gray-400 hover:text-white transition">O Nama</Link></li>
+                            <li><Link to="/dashboard" className="text-gray-400 hover:text-white transition">Za Korisnike</Link></li>
+                            <li><Link to="/dashboard" className="text-gray-400 hover:text-white transition">Za Majstore</Link></li>
+                            <li><Link to="/contact" className="text-gray-400 hover:text-white transition">Kontakt</Link></li>
+                        </ul>
                     </div>
-                    {/* Support */}
+
                     <div>
                         <h3 className="font-semibold text-lg mb-4">Podrška</h3>
                         <ul className="space-y-2">
@@ -36,13 +34,11 @@ export default function Footer() {
                     </div>
                 </div>
 
-                {/* Bottom Bar */}
                 <div className="border-t border-gray-700 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
                     <p className="text-gray-400 text-sm">
                         © 2026 Majstorija. Sva prava zadržana.
                     </p>
                     
-                    {/* Social Links (Optional) */}
                     <div className="flex gap-4">
                         <a href="#" className="text-gray-400 hover:text-white transition">
                             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">

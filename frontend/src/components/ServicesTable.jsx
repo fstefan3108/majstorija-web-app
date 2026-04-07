@@ -42,14 +42,13 @@ export default function ServicesTable({
   const isPending = (status) => normalizeStatus(status) === 'zakazano';
 
   return (
-    <div className="bg-[#1e2028] rounded-2xl p-6 lg:p-8 border border-gray-700">
-      {/* Header */}
+    <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 lg:p-8 border border-gray-700">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold text-white">Evidencija Servisa</h2>
         {onAddService && (
           <button
             onClick={onAddService}
-            className="flex items-center gap-2 px-6 py-3 bg-[#2324fe] text-white rounded-lg hover:bg-[#1a1bca] transition"
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold"
           >
             {buttonIcon}
             {buttonText}
@@ -57,14 +56,13 @@ export default function ServicesTable({
         )}
       </div>
 
-      {/* Empty state */}
       {services.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg mb-4">Nema poslova za prikaz</p>
+          <p className="text-gray-300 text-lg mb-4">Nema poslova za prikaz</p>
           {onAddService && (
             <button
               onClick={onAddService}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#2324fe] text-white rounded-lg hover:bg-[#1a1bca] transition"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold"
             >
               {buttonIcon}
               {buttonText}
@@ -76,18 +74,18 @@ export default function ServicesTable({
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-700">
-                <th className="text-left text-gray-400 font-semibold py-3 px-4">ID</th>
-                <th className="text-left text-gray-400 font-semibold py-3 px-4">Datum</th>
-                <th className="text-left text-gray-400 font-semibold py-3 px-4">Opis</th>
-                <th className="text-left text-gray-400 font-semibold py-3 px-4">Status</th>
-                <th className="text-left text-gray-400 font-semibold py-3 px-4">Hitno</th>
-                <th className="text-right text-gray-400 font-semibold py-3 px-4">Cena</th>
-                <th className="text-center text-gray-400 font-semibold py-3 px-4">Timer</th>
+                <th className="text-left text-gray-300 font-semibold py-3 px-4">ID</th>
+                <th className="text-left text-gray-300 font-semibold py-3 px-4">Datum</th>
+                <th className="text-left text-gray-300 font-semibold py-3 px-4">Opis</th>
+                <th className="text-left text-gray-300 font-semibold py-3 px-4">Status</th>
+                <th className="text-left text-gray-300 font-semibold py-3 px-4">Hitno</th>
+                <th className="text-right text-gray-300 font-semibold py-3 px-4">Cena</th>
+                <th className="text-center text-gray-300 font-semibold py-3 px-4">Timer</th>
                 {onStatusChange && (
-                  <th className="text-center text-gray-400 font-semibold py-3 px-4">Akcija</th>
+                  <th className="text-center text-gray-300 font-semibold py-3 px-4">Akcija</th>
                 )}
                 {onDelete && (
-                  <th className="text-center text-gray-400 font-semibold py-3 px-4">Obriši</th>
+                  <th className="text-center text-gray-300 font-semibold py-3 px-4">Obriši</th>
                 )}
               </tr>
             </thead>
@@ -107,7 +105,6 @@ export default function ServicesTable({
                     <span className="text-white">{service.jobDescription || 'Bez opisa'}</span>
                   </td>
 
-                  {/* Status */}
                   <td className="py-4 px-4">
                     {onStatusChange && !isPending(service.status) ? (
                       <div className="relative inline-flex">
@@ -126,7 +123,7 @@ export default function ServicesTable({
                             <option
                               key={s}
                               value={s}
-                              style={{ backgroundColor: SELECT_OPTION_BG[s] || "#1e2028", color: "white" }}
+                              style={{ backgroundColor: SELECT_OPTION_BG[s] || "#1f2937", color: "white" }}
                             >
                               {s}
                             </option>
@@ -169,7 +166,6 @@ export default function ServicesTable({
                     )}
                   </td>
 
-                  {/* Prihvati / Odbij — samo za zakazano */}
                   {onStatusChange && (
                     <td className="py-4 px-4 text-center">
                       {isPending(service.status) ? (

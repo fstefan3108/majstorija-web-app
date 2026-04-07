@@ -10,10 +10,12 @@ namespace WebProdavnica.API.Controllers
     public class CraftsmenController : ControllerBase
     {
         private readonly ICraftsmanService _craftsmanService;
+        private readonly IReviewService _reviewService;
 
-        public CraftsmenController(ICraftsmanService craftsmanService)
+        public CraftsmenController(ICraftsmanService craftsmanService, IReviewService reviewService)
         {
             _craftsmanService = craftsmanService;
+            _reviewService = reviewService;
         }
 
         // GET: api/craftsmen
@@ -204,53 +206,30 @@ namespace WebProdavnica.API.Controllers
             }
         }
 
-        // POST: api/craftsmen/5/rate
-        [HttpPost("{id}/rate")]
-        public IActionResult RateCraftsman(int id, [FromBody] RatingRequest request)
+        // GET: api/craftsmen/5/reviews
+        [HttpGet("{id}/reviews")]
+        public IActionResult GetReviews(int id)
         {
             try
             {
-                if (request.Rating < 1 || request.Rating > 5)
+                var reviews = _reviewService.GetReviewsByCraftsmanId(id);
+                
+                return Ok(new
                 {
-                    return BadRequest(new { success = false, message = "Ocena mora biti između 1 i 5" });
-                }
-
-                var craftsman = _craftsmanService.Get(id);
-                if (craftsman == null)
-                {
-                    return NotFound(new { success = false, message = "Majstor nije pronađen" });
-                }
-
-                // Calculate new average
-                decimal currentAverage = craftsman.AverageRating ?? 0;
-                int currentCount = craftsman.RatingCount;
-
-                decimal newAverage = ((currentAverage * currentCount) + request.Rating) / (currentCount + 1);
-
-                craftsman.AverageRating = newAverage;
-                craftsman.RatingCount = currentCount + 1;
-
-                bool success = _craftsmanService.Update(craftsman);
-
-                if (success)
-                {
-                    return Ok(new
-                    {
-                        success = true,
-                        message = "Ocena uspešno dodata",
-                        data = new
-                        {
-                            averageRating = newAverage,
-                            ratingCount = craftsman.RatingCount
-                        }
-                    });
-                }
-
-                return BadRequest(new { success = false, message = "Ažuriranje nije uspelo" });
+                    success = true,
+                    craftsmanId = id,
+                    data = reviews,
+                    count = reviews.Count,
+                    averageRating = reviews.Any() ? reviews.Average(r => r.Rating) : 0
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, error = ex.Message });
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message
+                });
             }
         }
     }

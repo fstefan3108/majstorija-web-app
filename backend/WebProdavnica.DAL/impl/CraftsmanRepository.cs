@@ -1,9 +1,4 @@
 ﻿using Microsoft.Data.SqlClient;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using WebProdavnica.Core.Constant;
 using WebProdavnica.DAL.Abstract;
 using WebProdavnica.Entities;
@@ -20,8 +15,8 @@ namespace WebProdavnica.DAL.Impl
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"INSERT INTO dbo.craftsmen
                 (first_name, last_name, email, phone, location, profession, 
-                experience, hourly_rate, working_hours, average_rating, password_hash, rating_count)
-                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ar, @ph, @rc)";
+                experience, hourly_rate, working_hours, password_hash)
+                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph)";
 
             cmd.Parameters.AddWithValue("@fn", c.FirstName);
             cmd.Parameters.AddWithValue("@ln", c.LastName);
@@ -32,9 +27,7 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@ex", c.Experience);
             cmd.Parameters.AddWithValue("@hr", c.HourlyRate);
             cmd.Parameters.AddWithValue("@wh", c.WorkingHours);
-            cmd.Parameters.AddWithValue("@ar", (object?)c.AverageRating ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ph", (object?)c.PasswordHash ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@rc", c.RatingCount);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -57,7 +50,7 @@ namespace WebProdavnica.DAL.Impl
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"SELECT craftsman_id, first_name, last_name, email, phone, 
                                 location, profession, experience, hourly_rate, working_hours, 
-                                average_rating, password_hash, refresh_token, refresh_token_expiry, rating_count
+                                password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count
                                 FROM dbo.craftsmen WHERE craftsman_id=@id";
             cmd.Parameters.AddWithValue("@id", id);
 
@@ -76,7 +69,7 @@ namespace WebProdavnica.DAL.Impl
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"SELECT craftsman_id, first_name, last_name, email, phone, 
                                 location, profession, experience, hourly_rate, working_hours, 
-                                average_rating, password_hash, refresh_token, refresh_token_expiry, rating_count
+                                password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count
                                 FROM dbo.craftsmen";
             SqlDataReader r = cmd.ExecuteReader();
 
@@ -93,9 +86,9 @@ namespace WebProdavnica.DAL.Impl
 
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"SELECT craftsman_id, first_name, last_name, email, phone, 
-                                location, profession, experience, hourly_rate, working_hours, 
-                                average_rating, password_hash, refresh_token, refresh_token_expiry, rating_count
-                                FROM dbo.craftsmen WHERE email=@email";
+                        location, profession, experience, hourly_rate, working_hours, 
+                        password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count
+                        FROM dbo.craftsmen WHERE email=@email";
             cmd.Parameters.AddWithValue("@email", email);
 
             SqlDataReader r = cmd.ExecuteReader();
@@ -120,10 +113,10 @@ namespace WebProdavnica.DAL.Impl
                 experience=@exp,
                 hourly_rate=@hr, 
                 working_hours=@wh,
-                average_rating=@ar,
                 password_hash=@ph,
                 refresh_token=@rt,
                 refresh_token_expiry=@rte,
+                average_rating=@ar,
                 rating_count=@rc
                 WHERE craftsman_id=@id";
 
@@ -136,13 +129,39 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@exp", craftsman.Experience);
             cmd.Parameters.AddWithValue("@hr", craftsman.HourlyRate);
             cmd.Parameters.AddWithValue("@wh", craftsman.WorkingHours);
-            cmd.Parameters.AddWithValue("@ar", (object)craftsman.AverageRating ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@ph", (object)craftsman.PasswordHash ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@rt", (object)craftsman.RefreshToken ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@rte", (object)craftsman.RefreshTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ph", (object?)craftsman.PasswordHash ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@rt", (object?)craftsman.RefreshToken ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@rte", (object?)craftsman.RefreshTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ar", (object?)craftsman.AverageRating ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@rc", craftsman.RatingCount);
             cmd.Parameters.AddWithValue("@id", craftsman.CraftsmanId);
 
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        //  NOVA METODA: računa prosječnu ocjenu iz dbo.reviews
+        public bool UpdateRating(int craftsmanId)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE dbo.craftsmen
+                SET 
+                    rating_count = (
+                        SELECT COUNT(*) 
+                        FROM dbo.reviews r
+                        INNER JOIN dbo.job_orders j ON r.job_id = j.job_id
+                        WHERE j.craftsman_id = @cid
+                    ),
+                    average_rating = (
+                        SELECT AVG(CAST(r.rating AS DECIMAL(3,2))) 
+                        FROM dbo.reviews r
+                        INNER JOIN dbo.job_orders j ON r.job_id = j.job_id
+                        WHERE j.craftsman_id = @cid
+                    )
+                WHERE craftsman_id = @cid";
+            cmd.Parameters.AddWithValue("@cid", craftsmanId);
             return cmd.ExecuteNonQuery() > 0;
         }
 
@@ -160,11 +179,11 @@ namespace WebProdavnica.DAL.Impl
                 Experience = r.GetInt32(7),
                 HourlyRate = r.GetDecimal(8),
                 WorkingHours = r.GetString(9),
-                AverageRating = r.IsDBNull(10) ? null : r.GetDecimal(10),
-                PasswordHash = r.IsDBNull(11) ? null : r.GetString(11),
-                RefreshToken = r.IsDBNull(12) ? null : r.GetString(12),
-                RefreshTokenExpiry = r.IsDBNull(13) ? null : r.GetDateTime(13),
-                RatingCount = r.IsDBNull(14) ? 0 : r.GetInt32(14)
+                PasswordHash = r.IsDBNull(10) ? null : r.GetString(10),
+                RefreshToken = r.IsDBNull(11) ? null : r.GetString(11),
+                RefreshTokenExpiry = r.IsDBNull(12) ? null : r.GetDateTime(12),
+                AverageRating = r.IsDBNull(13) ? null : r.GetDecimal(13),
+                RatingCount = r.GetInt32(14)
             };
         }
     }

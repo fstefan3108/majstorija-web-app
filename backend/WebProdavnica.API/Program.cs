@@ -9,26 +9,25 @@ var builder = WebApplication.CreateBuilder(args);
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<Entities.Configuration.JwtSettings>()!;
 builder.Services.AddSingleton<Entities.Configuration.JwtSettings>(jwtSettings);
 
-
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<WebProdavnica.Filters.ValidationFilter>();
 });
-
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
 {
     options.SuppressModelStateInvalidFilter = true;
 });
 
-//  REGISTER REPOSITORIES 
+// REGISTER REPOSITORIES
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IJobOrderRepository, JobOrderRepository>();
 builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
 builder.Services.AddScoped<IChatRepository, ChatRepository>();
-builder.Services.AddScoped<ICardTokenRepository, CardTokenRepository>();  
+builder.Services.AddScoped<ICardTokenRepository, CardTokenRepository>();
+builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 
-//  REGISTER BUSINESS LAYER SERVICES
+// REGISTER BUSINESS LAYER SERVICES
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
 builder.Services.AddScoped<IJobOrderService, JobOrderService>();
@@ -37,8 +36,9 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICardTokenService, CardTokenService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
 
-// da React može da poziva API
+// CORS za React
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
@@ -48,7 +48,7 @@ builder.Services.AddCors(options =>
             "http://localhost:5174",
             "http://localhost:5175",
             "http://localhost:5176",
-            "http://localhost:5177",  
+            "http://localhost:5177",
             "http://localhost:3000"
         )
         .AllowAnyHeader()
@@ -57,10 +57,13 @@ builder.Services.AddCors(options =>
     });
 });
 
+
 builder.Services.AddHttpClient("AllSecure", client =>
 {
     var config = builder.Configuration.GetSection("AllSecure");
-    client.BaseAddress = new Uri(config["BaseUrl"]);
+    var baseUrl = config["BaseUrl"]
+        ?? throw new InvalidOperationException("AllSecure:BaseUrl nije konfigurisan u appsettings.json");
+    client.BaseAddress = new Uri(baseUrl);
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -68,22 +71,14 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-
 app.UseCors("AllowReactApp");
 app.UseHttpsRedirection();
-
-
-
-
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
