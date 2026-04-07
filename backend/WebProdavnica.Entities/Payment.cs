@@ -17,6 +17,7 @@ namespace WebProdavnica.Entities
         public string RedirectUrl { get; set; } 
         public string Currency { get; set; } = "RSD";
         public decimal? PreauthorizedAmount { get; set; }  // buffered amount (Amount * 1.5)
+        public string? CaptureTransactionId { get; set; } // AllSecure referenceId from Capture — needed for refund
         public int JobId { get; set; }
         public JobOrder JobOrder { get; set; }
     }

@@ -61,10 +61,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpClient("AllSecure", client =>
 {
     var config = builder.Configuration.GetSection("AllSecure");
-    var baseUrl = config["BaseUrl"]
-        ?? throw new InvalidOperationException("AllSecure:BaseUrl nije konfigurisan u appsettings.json");
-    client.BaseAddress = new Uri(baseUrl);
+    client.BaseAddress = new Uri(config["BaseUrl"]!);
 });
+builder.Services.AddScoped<WebProdavnica.API.Services.AllSecureClient>();
+builder.Services.AddHostedService<WebProdavnica.API.Services.AutoCaptureService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

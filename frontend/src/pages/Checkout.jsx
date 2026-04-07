@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CreditCard, Shield, Clock, MapPin, Briefcase, Loader2, AlertCircle } from 'lucide-react';
+import { CreditCard, Shield, Clock, MapPin, Briefcase, Loader2, AlertCircle, ArrowRight, Lock } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from '../context/AuthContext';
@@ -11,19 +11,14 @@ export default function Checkout() {
 
   const [savedCard, setSavedCard] = useState(null);
   const [tokenChecked, setTokenChecked] = useState(false);
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [cardBrand, setCardBrand] = useState('VISA');
   const [payError, setPayError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  // Persist booking data across refreshes
+  // Persist booking data across refreshes (needed after AllSecure redirect)
   useEffect(() => {
     if (location.state) {
       sessionStorage.setItem('checkoutData', JSON.stringify(location.state));
@@ -60,17 +55,8 @@ export default function Checkout() {
       userId:      user?.id,
       craftsmanId: craftsman.craftsmanId,
       amount:      jobOrder.totalPrice,
-      cardBrand:   savedCard?.cardBrand ?? cardBrand,
+      cardBrand:   savedCard?.cardBrand ?? null,
     };
-
-    // Only include card fields when there is no saved token
-    if (!savedCard) {
-      const [expiryMonth, expiryYear] = cardExpiry.split('/').map(s => s.trim());
-      body.cardNumber      = cardNumber.replace(/\s/g, '');
-      body.cardExpiryMonth = expiryMonth;
-      body.cardExpiryYear  = expiryYear;
-      body.cardCvv         = cardCvv;
-    }
 
     try {
       const res  = await fetch(`${API_BASE}/api/payments/initiate`, {
@@ -81,13 +67,15 @@ export default function Checkout() {
       const data = await res.json();
 
       if (data.status === 'preauthorized') {
+        // Returning user — preauth completed immediately, no redirect needed
         navigate(`/payment-success?jobId=${bookingData.jobId}`);
       } else if (data.status === 'redirect') {
+        // First-time user — store context and redirect to AllSecure's hosted card entry page
         sessionStorage.setItem('pendingTransactionId', data.transactionId);
         sessionStorage.setItem('pendingJobId', bookingData.jobId);
         window.location.href = data.redirectUrl;
       } else {
-        setPayError(data.description || 'Plaćanje nije uspelo. Proverite podatke kartice.');
+        setPayError(data.message || 'Plaćanje nije uspelo. Pokušajte ponovo.');
       }
     } catch {
       setPayError('Greška pri obradi plaćanja. Pokušajte ponovo.');
@@ -174,7 +162,7 @@ export default function Checkout() {
               <h2 className="text-white font-semibold text-lg mb-2">Podaci kartice</h2>
 
               {savedCard ? (
-                // Returning user — show saved card, no input needed
+                // Returning user — show saved card, payment goes through immediately
                 <div className="flex items-center gap-4 p-4 bg-gray-700/50 rounded-xl border border-gray-600">
                   <CreditCard className="w-8 h-8 text-blue-400 flex-shrink-0" />
                   <div>
@@ -183,70 +171,32 @@ export default function Checkout() {
                   </div>
                 </div>
               ) : (
-                // First-time user — collect card data
-                <>
+                // First-time user — card is entered on AllSecure's secure hosted page
+                <div className="flex items-start gap-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                  <Lock className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Broj kartice</label>
-                    <input
-                      type="text"
-                      maxLength={19}
-                      placeholder="1234 5678 9012 3456"
-                      value={cardNumber}
-                      onChange={e => setCardNumber(e.target.value)}
-                      className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                    />
+                    <p className="text-white font-medium mb-1">Sigurna stranica za unos kartice</p>
+                    <p className="text-gray-400 text-sm">
+                      Bićete preusmereni na AllSecure-ovu zaštićenu stranicu gde ćete uneti podatke kartice.
+                      Vaši podaci kartice nikad ne prolaze kroz naše servere.
+                    </p>
                   </div>
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-300 mb-1">Datum isteka</label>
-                      <input
-                        type="text"
-                        placeholder="MM/YYYY"
-                        value={cardExpiry}
-                        onChange={e => setCardExpiry(e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                    <div className="w-28">
-                      <label className="block text-sm font-medium text-gray-300 mb-1">CVV</label>
-                      <input
-                        type="text"
-                        maxLength={4}
-                        placeholder="123"
-                        value={cardCvv}
-                        onChange={e => setCardCvv(e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Vrsta kartice</label>
-                    <select
-                      value={cardBrand}
-                      onChange={e => setCardBrand(e.target.value)}
-                      className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="VISA">Visa</option>
-                      <option value="MASTER">Mastercard</option>
-                    </select>
-                  </div>
-                </>
+                </div>
               )}
-              {payError && <p className="text-red-400 text-sm">{payError}</p>}
+
+              {payError && (
+                <div className="flex items-center gap-2 text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {payError}
+                </div>
+              )}
             </div>
 
             {/* Security badge */}
             <div className="flex items-center gap-3 text-gray-400 text-sm bg-gray-800/30 rounded-xl p-4">
               <Shield className="w-5 h-5 text-green-400 flex-shrink-0" />
-              <span>Plaćanje je sigurno i zaštićeno od strane <span className="text-white font-medium">AllSecure</span>.</span>
+              <span>Plaćanje je sigurno i zaštićeno od strane <span className="text-white font-medium">AllSecure</span>. PCI-DSS usklađeno.</span>
             </div>
-
-            {error && (
-              <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                {error}
-              </div>
-            )}
 
             {/* Action buttons */}
             <div className="flex gap-3">
@@ -266,10 +216,15 @@ export default function Checkout() {
                     <Loader2 className="w-5 h-5 animate-spin" />
                     Procesiranje...
                   </>
-                ) : (
+                ) : savedCard ? (
                   <>
                     <CreditCard className="w-5 h-5" />
                     Rezerviši {jobOrder.totalPrice.toLocaleString()} RSD
+                  </>
+                ) : (
+                  <>
+                    Nastavi na unos kartice
+                    <ArrowRight className="w-5 h-5" />
                   </>
                 )}
               </button>

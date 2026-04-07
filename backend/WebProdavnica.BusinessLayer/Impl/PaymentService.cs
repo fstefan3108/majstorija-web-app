@@ -19,7 +19,13 @@ namespace WebProdavnica.BusinessLayer.Impl
         public List<Payment> GetByJob(int jobId)
             => _paymentRepository.GetByJob(jobId);
 
+        public Payment? GetByTransactionId(string transactionId)
+            => _paymentRepository.GetByTransactionId(transactionId);
+
         public bool UpdateStatus(int jobId, string newStatus)
             => _paymentRepository.UpdateStatus(jobId, newStatus);
+
+        public bool UpdateCapture(int jobId, string captureTransactionId)
+            => _paymentRepository.UpdateCapture(jobId, captureTransactionId);
     }
 }

@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using WebProdavnica.API.Services;
 using WebProdavnica.BusinessLayer.Abstract;
 using WebProdavnica.Entities;
 using WebProdavnica.Entities.DTOs;
@@ -12,21 +14,21 @@ namespace WebProdavnica.API.Controllers
         private readonly IPaymentService _paymentService;
         private readonly ICardTokenService _cardTokenService;
         private readonly IJobOrderService _jobOrderService;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _config;
+        private readonly IUserService _userService;
+        private readonly AllSecureClient _allSecure;
 
         public PaymentsController(
             IPaymentService paymentService,
             ICardTokenService cardTokenService,
             IJobOrderService jobOrderService,
-            IHttpClientFactory httpClientFactory,
-            IConfiguration config)
+            IUserService userService,
+            AllSecureClient allSecure)
         {
             _paymentService = paymentService;
             _cardTokenService = cardTokenService;
             _jobOrderService = jobOrderService;
-            _httpClientFactory = httpClientFactory;
-            _config = config;
+            _userService = userService;
+            _allSecure = allSecure;
         }
 
         // GET /api/payments/card-token/{userId}
@@ -47,138 +49,69 @@ namespace WebProdavnica.API.Controllers
         }
 
         // POST /api/payments/initiate
-        // Phase 1+2: tokenize card (first time) + pre-authorize with 50% buffer.
+        // Phase 1+2: preauthorize with 50% buffer.
+        // First-time user  → AllSecure returns REDIRECT to hosted card entry page.
+        //                     RegistrationId arrives later via callback (withRegister=true).
+        // Returning user   → charge via saved token, typically FINISHED immediately.
         [HttpPost("initiate")]
         public async Task<IActionResult> Initiate([FromBody] InitiatePaymentRequest request)
         {
-            var isMock = _config.GetValue<bool>("AllSecure:MockPayments");
             var preauthAmount = request.Amount * 1.5m;  // 50% buffer
-
-            if (isMock)
-            {
-                // Save a mock card token if user doesn't have one yet
-                var existing = _cardTokenService.GetByUserId(request.UserId);
-                if (existing == null && request.CardNumber != null)
-                {
-                    var masked = "************" + request.CardNumber.Replace(" ", "")[^4..];
-                    _cardTokenService.Save(request.UserId, Guid.NewGuid().ToString("N"), request.CardBrand, masked);
-                }
-
-                var mockTransactionId = Guid.NewGuid().ToString("N");
-                _paymentService.Add(new Payment
-                {
-                    JobId = request.JobId,
-                    Amount = request.Amount,
-                    PreauthorizedAmount = preauthAmount,
-                    Currency = "RSD",
-                    PaymentMethod = request.CardBrand,
-                    PaymentStatus = "Preauthorized",
-                    TransactionId = mockTransactionId,
-                });
-                return Ok(new { status = "preauthorized", transactionId = mockTransactionId, preauthAmount });
-            }
-
-            // ── Real AllSecure call ───────────────────────────────────────────
-            var entityId = _config["AllSecure:EntityId"];
-            var shopperResultUrl = _config["AllSecure:ShopperResultUrl"];
+            var merchantTransactionId = Guid.NewGuid().ToString("N");
             var existingToken = _cardTokenService.GetByUserId(request.UserId);
 
-            var formParams = new Dictionary<string, string>
-            {
-                ["entityId"] = entityId,
-                ["amount"] = preauthAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                ["currency"] = "RSD",
-                ["paymentType"] = "PA",   // Pre-Authorization — reserves funds, does not capture
-                ["merchantTransactionId"] = Guid.NewGuid().ToString("N"),
-                ["shopperResultUrl"] = shopperResultUrl,
-                ["threeDSecure.channel"] = "BROWSER",
-            };
+            AllSecureResult result;
 
             if (existingToken != null)
             {
-                // Returning user — charge via stored token, no card form needed
-                formParams["registrations[0].id"] = existingToken.RegistrationId;
+                // Returning user — charge via stored registration token, no card form needed.
+                result = await _allSecure.PreauthorizeWithRegistrationAsync(
+                    merchantTransactionId,
+                    preauthAmount,
+                    "RSD",
+                    existingToken.RegistrationId,
+                    request.JobId);
             }
             else
             {
-                // First-time user — send card data and ask AllSecure to tokenize
-                formParams["paymentBrand"] = request.CardBrand!.ToUpper();
-                formParams["card.number"] = request.CardNumber!;
-                formParams["card.expiryMonth"] = request.CardExpiryMonth!;
-                formParams["card.expiryYear"] = request.CardExpiryYear!;
-                formParams["card.cvv"] = request.CardCvv!;
-                formParams["createRegistration"] = "true";
+                // First-time user — AllSecure returns REDIRECT to their hosted card entry page.
+                // withRegister=true asks AllSecure to tokenize the card for future charges.
+                // RegistrationId arrives in the callback after the user completes payment.
+                var user = _userService.Get(request.UserId);
+                var customerEmail = user?.Email ?? "customer@majstorija.rs";
+                var customerIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+                result = await _allSecure.PreauthorizeAsync(
+                    merchantTransactionId,
+                    preauthAmount,
+                    "RSD",
+                    customerEmail,
+                    customerIp,
+                    request.JobId,
+                    withRegister: true);
             }
 
-            var client = _httpClientFactory.CreateClient("AllSecure");
-            var response = await client.PostAsync("/v1/payments", new FormUrlEncodedContent(formParams));
-            var body = await response.Content.ReadAsStringAsync();
-            var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
-
-            var resultCode = json.GetProperty("result").GetProperty("code").GetString();
-            var transactionId = json.GetProperty("id").GetString();
-
-            if (resultCode == "000.000.000")
+            return result.ReturnType switch
             {
-                // Save token if this was a first-time card registration
-                if (existingToken == null && json.TryGetProperty("registrationId", out var regEl))
-                {
-                    var masked = "************" + request.CardNumber![^4..];
-                    _cardTokenService.Save(request.UserId, regEl.GetString()!, request.CardBrand, masked);
-                }
-
-                _paymentService.Add(new Payment
-                {
-                    JobId = request.JobId,
-                    Amount = request.Amount,
-                    PreauthorizedAmount = preauthAmount,
-                    Currency = "RSD",
-                    PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
-                    PaymentStatus = "Preauthorized",
-                    TransactionId = transactionId,
-                });
-
-                return Ok(new { status = "preauthorized", transactionId, preauthAmount });
-            }
-            else if (resultCode == "000.200.000")
-            {
-                var redirectUrl = json.GetProperty("redirect").GetProperty("url").GetString();
-                _paymentService.Add(new Payment
-                {
-                    JobId = request.JobId,
-                    Amount = request.Amount,
-                    PreauthorizedAmount = preauthAmount,
-                    Currency = "RSD",
-                    PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
-                    PaymentStatus = "Pending",
-                    TransactionId = transactionId,
-                    RedirectUrl = redirectUrl,
-                });
-                return Ok(new { status = "redirect", redirectUrl, transactionId });
-            }
-            else
-            {
-                var description = json.GetProperty("result").GetProperty("description").GetString();
-                return BadRequest(new { status = "failed", code = resultCode, description });
-            }
+                "FINISHED" => HandlePreauthFinished(request, preauthAmount, result, existingToken),
+                "REDIRECT" => HandlePreauthRedirect(request, preauthAmount, result, existingToken),
+                "PENDING"  => HandlePreauthPending(request, preauthAmount, result, existingToken),
+                _          => BadRequest(new { status = "failed", message = result.ErrorMessage ?? "AllSecure error" }),
+            };
         }
 
         // GET /api/payments/status/{transactionId}
+        // Called by PaymentSuccess.jsx after returning from AllSecure's redirect page.
+        // Polls until the callback updates the status from Pending to Preauthorized.
         [HttpGet("status/{transactionId}")]
-        public async Task<IActionResult> CheckStatus(string transactionId)
+        public IActionResult CheckStatus(string transactionId)
         {
-            var isMock = _config.GetValue<bool>("AllSecure:MockPayments");
-            if (isMock)
-                return Ok(new { success = true, code = "000.000.000" });
+            var payment = _paymentService.GetByTransactionId(transactionId);
+            if (payment == null)
+                return NotFound(new { success = false });
 
-            var entityId = _config["AllSecure:EntityId"];
-            var client = _httpClientFactory.CreateClient("AllSecure");
-            var response = await client.GetAsync($"/v1/payments/{transactionId}?entityId={entityId}");
-            var body = await response.Content.ReadAsStringAsync();
-            var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
-            var resultCode = json.GetProperty("result").GetProperty("code").GetString();
-
-            return Ok(new { success = resultCode == "000.000.000", code = resultCode });
+            var success = payment.PaymentStatus == "Preauthorized";
+            return Ok(new { success, status = payment.PaymentStatus });
         }
 
         // GET /api/payments/job/{jobId}
@@ -189,12 +122,52 @@ namespace WebProdavnica.API.Controllers
         }
 
         // POST /api/payments/{jobId}/capture
-        // Phase 4: Client confirms the job is done → capture the pre-authorized amount.
+        // Phase 4: client confirms job is done → capture the pre-authorised amount.
         [HttpPost("{jobId}/capture")]
         public async Task<IActionResult> Capture(int jobId)
         {
-            var isMock = _config.GetValue<bool>("AllSecure:MockPayments");
+            var payments = _paymentService.GetByJob(jobId);
+            var payment = payments.LastOrDefault();
+            if (payment == null)
+                return NotFound(new { success = false, message = "Plaćanje nije pronađeno" });
 
+            // Guard against double-capture (user double-click or race with AutoCaptureService)
+            if (payment.PaymentStatus == "Captured")
+                return Ok(new { success = true, actualPrice = payment.Amount, alreadyCaptured = true });
+
+            if (payment.PaymentStatus != "Preauthorized")
+                return BadRequest(new { success = false, message = $"Nije moguće naplatiti plaćanje u statusu '{payment.PaymentStatus}'." });
+
+            var job = _jobOrderService.Get(jobId);
+            if (job == null)
+                return NotFound(new { success = false, message = "Posao nije pronađen" });
+
+            var result = await _allSecure.CaptureAsync(
+                Guid.NewGuid().ToString("N"),
+                payment.TransactionId!,
+                job.TotalPrice,
+                "RSD",
+                jobId);
+
+            if (result.ReturnType != "FINISHED" || !result.IsSuccess)
+                return BadRequest(new { success = false, message = result.ErrorMessage ?? "Capture nije uspeo" });
+
+            _paymentService.UpdateCapture(jobId, result.ReferenceId!);
+
+            job.Status = "Završeno";
+            _jobOrderService.Update(job);
+
+            return Ok(new { success = true, actualPrice = job.TotalPrice });
+        }
+
+        // POST /api/payments/{jobId}/refund
+        // Dispute handling.
+        // Captured payment     → refund via AllSecure's refund transaction.
+        // Preauthorized only   → void the reservation instead.
+        // Optional body: { "amount": 1234.56 } for partial refund (Captured only).
+        [HttpPost("{jobId}/refund")]
+        public async Task<IActionResult> Refund(int jobId, [FromBody] RefundRequest? request = null)
+        {
             var payments = _paymentService.GetByJob(jobId);
             var payment = payments.LastOrDefault();
             if (payment == null)
@@ -204,38 +177,188 @@ namespace WebProdavnica.API.Controllers
             if (job == null)
                 return NotFound(new { success = false, message = "Posao nije pronađen" });
 
-            if (!isMock)
+            var refundAmount = (request?.Amount > 0) ? request.Amount!.Value : payment.Amount;
+
+            AllSecureResult result;
+
+            if (payment.PaymentStatus == "Captured" && payment.CaptureTransactionId != null)
             {
-                var entityId = _config["AllSecure:EntityId"];
-                var formParams = new Dictionary<string, string>
+                result = await _allSecure.RefundAsync(
+                    Guid.NewGuid().ToString("N"),
+                    payment.CaptureTransactionId,
+                    refundAmount,
+                    payment.Currency ?? "RSD");
+            }
+            else if (payment.PaymentStatus == "Preauthorized" && payment.TransactionId != null)
+            {
+                result = await _allSecure.VoidAsync(
+                    Guid.NewGuid().ToString("N"),
+                    payment.TransactionId);
+            }
+            else
+            {
+                return BadRequest(new
                 {
-                    ["entityId"] = entityId,
-                    ["amount"] = job.TotalPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                    ["currency"] = "RSD",
-                    ["paymentType"] = "CP",
-                };
-
-                var client = _httpClientFactory.CreateClient("AllSecure");
-                var response = await client.PostAsync(
-                    $"/v1/payments/{payment.TransactionId}",
-                    new FormUrlEncodedContent(formParams));
-                var body = await response.Content.ReadAsStringAsync();
-                var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
-                var resultCode = json.GetProperty("result").GetProperty("code").GetString();
-
-                if (resultCode != "000.000.000")
-                {
-                    var description = json.GetProperty("result").GetProperty("description").GetString();
-                    return BadRequest(new { success = false, code = resultCode, description });
-                }
+                    success = false,
+                    message = $"Plaćanje u statusu '{payment.PaymentStatus}' ne može biti refundovano.",
+                });
             }
 
-            _paymentService.UpdateStatus(jobId, "Captured");
+            if (result.ReturnType != "FINISHED" || !result.IsSuccess)
+                return BadRequest(new { success = false, message = result.ErrorMessage ?? "Refund nije uspeo" });
 
-            job.Status = "Završeno";
+            var newPaymentStatus = payment.PaymentStatus == "Captured" ? "Refunded" : "Voided";
+            _paymentService.UpdateStatus(jobId, newPaymentStatus);
+
+            job.Status = "Otkazano";
             _jobOrderService.Update(job);
 
-            return Ok(new { success = true, actualPrice = job.TotalPrice });
+            return Ok(new { success = true, refundedAmount = refundAmount, newStatus = newPaymentStatus });
+        }
+
+        // POST /api/payments/callback/{jobId}
+        // AllSecure calls this endpoint asynchronously after every transaction reaches its final state.
+        // Must respond with HTTP 200 and body "OK" — otherwise AllSecure retries.
+        [HttpPost("callback/{jobId}")]
+        public async Task<IActionResult> Callback(int jobId)
+        {
+            string rawBody;
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+                rawBody = await reader.ReadToEndAsync();
+
+            var authHeader  = Request.Headers["Authorization"].FirstOrDefault();
+            var contentType = Request.ContentType ?? "text/xml";
+            var date        = Request.Headers["Date"].FirstOrDefault() ?? "";
+            var requestUri  = Request.Path.ToString();
+
+            if (!_allSecure.VerifyCallbackSignature("POST", rawBody, contentType, date, requestUri, authHeader))
+                return Unauthorized();
+
+            var cb = _allSecure.ParseCallback(rawBody);
+
+            switch (cb.TransactionType?.ToUpper())
+            {
+                case "PREAUTHORIZE":
+                    await HandlePreauthCallback(jobId, cb);
+                    break;
+
+                case "CAPTURE":
+                    if (!cb.IsSuccess)
+                        _paymentService.UpdateStatus(jobId, "CaptureFailed");
+                    break;
+
+                case "CHARGEBACK":
+                    _paymentService.UpdateStatus(jobId, "Chargeback");
+                    var cbJob = _jobOrderService.Get(jobId);
+                    if (cbJob != null)
+                    {
+                        cbJob.Status = "Sporno";
+                        _jobOrderService.Update(cbJob);
+                    }
+                    break;
+
+                case "CHARGEBACK-REVERSAL":
+                    _paymentService.UpdateStatus(jobId, "Captured");
+                    break;
+            }
+
+            return Content("OK", "text/plain");
+        }
+
+        // ── Private helpers ───────────────────────────────────────────────────
+
+        private Task HandlePreauthCallback(int jobId, AllSecureCallbackResult cb)
+        {
+            if (cb.IsSuccess)
+            {
+                _paymentService.UpdateStatus(jobId, "Preauthorized");
+
+                if (cb.RegistrationId != null)
+                {
+                    var job = _jobOrderService.Get(jobId);
+                    if (job != null && _cardTokenService.GetByUserId(job.UserId) == null)
+                    {
+                        var masked = cb.CardFirstSix != null && cb.CardLastFour != null
+                            ? cb.CardFirstSix + "******" + cb.CardLastFour
+                            : "************" + (cb.CardLastFour ?? "????");
+
+                        _cardTokenService.Save(job.UserId, cb.RegistrationId, cb.CardBrand, masked);
+                    }
+                }
+            }
+            else
+            {
+                _paymentService.UpdateStatus(jobId, "Failed");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private IActionResult HandlePreauthFinished(
+            InitiatePaymentRequest request,
+            decimal preauthAmount,
+            AllSecureResult result,
+            CardToken? existingToken)
+        {
+            if (existingToken == null && result.RegistrationId != null)
+            {
+                var masked = "************????";
+                _cardTokenService.Save(request.UserId, result.RegistrationId, request.CardBrand, masked);
+            }
+
+            _paymentService.Add(new Payment
+            {
+                JobId = request.JobId,
+                Amount = request.Amount,
+                PreauthorizedAmount = preauthAmount,
+                Currency = "RSD",
+                PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
+                PaymentStatus = "Preauthorized",
+                TransactionId = result.ReferenceId!,
+            });
+
+            return Ok(new { status = "preauthorized", transactionId = result.ReferenceId, preauthAmount });
+        }
+
+        private IActionResult HandlePreauthRedirect(
+            InitiatePaymentRequest request,
+            decimal preauthAmount,
+            AllSecureResult result,
+            CardToken? existingToken)
+        {
+            _paymentService.Add(new Payment
+            {
+                JobId = request.JobId,
+                Amount = request.Amount,
+                PreauthorizedAmount = preauthAmount,
+                Currency = "RSD",
+                PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
+                PaymentStatus = "Pending",
+                TransactionId = result.ReferenceId!,
+                RedirectUrl = result.RedirectUrl,
+            });
+
+            return Ok(new { status = "redirect", redirectUrl = result.RedirectUrl, transactionId = result.ReferenceId });
+        }
+
+        private IActionResult HandlePreauthPending(
+            InitiatePaymentRequest request,
+            decimal preauthAmount,
+            AllSecureResult result,
+            CardToken? existingToken)
+        {
+            _paymentService.Add(new Payment
+            {
+                JobId = request.JobId,
+                Amount = request.Amount,
+                PreauthorizedAmount = preauthAmount,
+                Currency = "RSD",
+                PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
+                PaymentStatus = "Pending",
+                TransactionId = result.ReferenceId!,
+            });
+
+            return Ok(new { status = "pending", transactionId = result.ReferenceId });
         }
     }
 }

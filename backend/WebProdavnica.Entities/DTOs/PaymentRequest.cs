@@ -12,11 +12,11 @@ namespace WebProdavnica.Entities.DTOs
         public int UserId { get; set; }
         public int CraftsmanId { get; set; }
         public decimal Amount { get; set; }
-        public string CardNumber { get; set; }
-        public string CardExpiryMonth { get; set; }
-        public string CardExpiryYear { get; set; }   
-        public string CardCvv { get; set; }
-        public string CardBrand { get; set; }      
+        public string? CardNumber { get; set; }
+        public string? CardExpiryMonth { get; set; }
+        public string? CardExpiryYear { get; set; }
+        public string? CardCvv { get; set; }
+        public string? CardBrand { get; set; }
         public string? MerchantTransactionId { get; set; } 
     }
 
@@ -25,5 +25,11 @@ namespace WebProdavnica.Entities.DTOs
         public string TransactionId { get; set; }
         public int JobId { get; set; }
         public decimal Amount { get; set; }
+    }
+
+    public class RefundRequest
+    {
+        // Optional — omit or set to 0 for full refund
+        public decimal? Amount { get; set; }
     }
 }

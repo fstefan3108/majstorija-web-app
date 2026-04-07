@@ -5,7 +5,7 @@ using System.Xml.Linq;
 namespace WebProdavnica.API.Services
 {
     /// <summary>
-    /// Returned by every AllSecure API call.
+    /// Returned by every AllSecure API call (preauthorize / capture / etc.).
     /// The controller inspects ReturnType to decide what to do next.
     /// </summary>
     public class AllSecureResult
@@ -24,26 +24,65 @@ namespace WebProdavnica.API.Services
         // Only set when ReturnType == REDIRECT. Redirect the user here.
         public string? RedirectUrl { get; set; }
 
-        // Only set after withRegister=true completes successfully.
-        // Store this in card_tokens.registration_id for future charges without card re-entry.
+        // Only set after withRegister=true completes successfully (FINISHED case).
+        // For REDIRECT case it arrives later in the callback.
         public string? RegistrationId { get; set; }
 
         // Only set when ReturnType == ERROR.
         public string? ErrorMessage { get; set; }
     }
 
+    /// <summary>
+    /// Parsed from the async callback (postback notification) that AllSecure POSTs to callbackUrl.
+    /// Uses namespace https://asxgw.com/Schema/V2/Callback — different from the Result namespace.
+    /// </summary>
+    public class AllSecureCallbackResult
+    {
+        // "OK" or "ERROR"
+        public string Result { get; set; } = "";
+        public bool IsSuccess => Result == "OK";
+
+        // AllSecure's UUID — matches what we stored in payments.transaction_id
+        public string? ReferenceId { get; set; }
+
+        // Our merchantTransactionId sent in the original request
+        public string? MerchantTransactionId { get; set; }
+
+        // PREAUTHORIZE, CAPTURE, CHARGEBACK, CHARGEBACK-REVERSAL, DEBIT, REFUND, etc.
+        public string? TransactionType { get; set; }
+
+        // Present when withRegister=true and the card was successfully tokenised.
+        // This is the value to store in card_tokens.registration_id.
+        public string? RegistrationId { get; set; }
+
+        // Card details extracted from <returnData><creditcardData>
+        public string? CardBrand { get; set; }         // "visa" → uppercased to "VISA"
+        public string? CardLastFour { get; set; }       // e.g. "1111"
+        public string? CardFirstSix { get; set; }       // e.g. "411111"
+
+        // For CHARGEBACK callbacks
+        public string? OriginalReferenceId { get; set; }
+
+        // Error details
+        public string? ErrorMessage { get; set; }
+        public string? ErrorCode { get; set; }
+    }
+
     public class AllSecureClient
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<AllSecureClient> _logger;
         private readonly string _username;
         private readonly string _passwordHashed;   // SHA-1 of plaintext password, lowercase hex
         private readonly string _apiKey;           // Goes into the Authorization header
         private readonly string _sharedSecret;     // Used as HMAC-SHA512 key
         private readonly string _callbackUrl;
         private readonly string _shopperResultUrl;
+        private readonly string _schemaBase;  // e.g. http://asxgw.paymentsandbox.cloud or https://asxgw.com
 
-        public AllSecureClient(IHttpClientFactory httpClientFactory, IConfiguration config)
+        public AllSecureClient(IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<AllSecureClient> logger)
         {
+            _logger = logger;
             _httpClientFactory = httpClientFactory;
             var s = config.GetSection("AllSecure");
 
@@ -52,6 +91,7 @@ namespace WebProdavnica.API.Services
             _sharedSecret     = s["SharedSecret"]!;
             _callbackUrl      = s["CallbackUrl"]!;
             _shopperResultUrl = s["ShopperResultUrl"]!;
+            _schemaBase       = s["SchemaBaseUrl"]!;
 
             // AllSecure requires the password as SHA-1 hash in lowercase hex — NOT plaintext.
             var plain = s["Password"]!;
@@ -102,7 +142,7 @@ namespace WebProdavnica.API.Services
 
         /// <summary>
         /// Reserves funds using a previously saved card registration (returning user).
-        /// registrationReferenceId = AllSecure's referenceId returned when the card was registered
+        /// registrationReferenceId = the registrationId returned when the card was registered
         ///   (stored in card_tokens.registration_id).
         /// Usually completes as FINISHED with no redirect, but may still trigger 3DS.
         /// </summary>
@@ -113,10 +153,15 @@ namespace WebProdavnica.API.Services
             string registrationReferenceId,
             int jobId)
         {
+            // successUrl/cancelUrl/errorUrl are included in case AllSecure triggers a 3DS
+            // challenge for the returning user — without them the redirect would have nowhere to go.
             var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
     <referenceTransactionId>{XE(registrationReferenceId)}</referenceTransactionId>
     <amount>{Fmt(amount)}</amount>
     <currency>{currency}</currency>
+    <successUrl>{XE(_shopperResultUrl)}</successUrl>
+    <cancelUrl>{XE(_shopperResultUrl)}?canceled=true</cancelUrl>
+    <errorUrl>{XE(_shopperResultUrl)}?error=true</errorUrl>
     <callbackUrl>{XE($"{_callbackUrl}/{jobId}")}</callbackUrl>";
 
             return PostTransactionAsync("preauthorize", inner);
@@ -126,33 +171,156 @@ namespace WebProdavnica.API.Services
         /// Charges the actual amount against a previously pre-authorized transaction.
         /// preauthorizeReferenceId = AllSecure's referenceId from Preauthorize (payments.transaction_id).
         /// amount = actual job price — can be less than the reserved amount (the buffer is released).
+        /// callbackUrl is included so that any chargeback on this capture is routed to the right job.
         /// </summary>
         public Task<AllSecureResult> CaptureAsync(
             string merchantTransactionId,
             string preauthorizeReferenceId,
             decimal amount,
-            string currency)
+            string currency,
+            int jobId)
         {
             var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
     <referenceTransactionId>{XE(preauthorizeReferenceId)}</referenceTransactionId>
     <amount>{Fmt(amount)}</amount>
-    <currency>{currency}</currency>";
+    <currency>{currency}</currency>
+    <callbackUrl>{XE($"{_callbackUrl}/{jobId}")}</callbackUrl>";
 
             return PostTransactionAsync("capture", inner);
         }
 
         /// <summary>
-        /// Parses AllSecure's async callback notification XML body.
-        /// Call this in the POST /api/payments/callback/{jobId} endpoint.
+        /// Refunds a previously captured transaction, partially or in full.
+        /// captureReferenceId = AllSecure's referenceId from the Capture.
         /// </summary>
-        public static AllSecureResult ParseCallback(string xml)
-            => ParseXmlResponse(xml);
+        public Task<AllSecureResult> RefundAsync(
+            string merchantTransactionId,
+            string captureReferenceId,
+            decimal amount,
+            string currency)
+        {
+            var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
+    <referenceTransactionId>{XE(captureReferenceId)}</referenceTransactionId>
+    <amount>{Fmt(amount)}</amount>
+    <currency>{currency}</currency>";
+
+            return PostTransactionAsync("refund", inner);
+        }
+
+        /// <summary>
+        /// Voids (cancels) a pre-authorized transaction that has not yet been captured.
+        /// Use this when a job is cancelled before the timer starts.
+        /// </summary>
+        public Task<AllSecureResult> VoidAsync(
+            string merchantTransactionId,
+            string preauthorizeReferenceId)
+        {
+            var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
+    <referenceTransactionId>{XE(preauthorizeReferenceId)}</referenceTransactionId>";
+
+            return PostTransactionAsync("void", inner);
+        }
+
+        /// <summary>
+        /// Parses AllSecure's async callback (postback notification) XML body.
+        /// Call this in the POST /api/payments/callback/{jobId} endpoint.
+        /// Note: uses namespace V2/Callback, NOT V2/Result.
+        /// </summary>
+        public AllSecureCallbackResult ParseCallback(string xml)
+        {
+            try
+            {
+                var ns   = XNamespace.Get($"{_schemaBase}/Schema/V2/Callback");
+                var doc  = XDocument.Parse(xml);
+                var root = doc.Root!;
+
+                string Get(string name) =>
+                    root.Element(ns + name)?.Value ?? root.Element(name)?.Value ?? "";
+
+                var result          = Get("result");
+                var referenceId     = Get("referenceId");
+                var merchantTxId    = Get("transactionId");
+                var transactionType = Get("transactionType");
+                var registrationId  = Get("registrationId");
+
+                // Card data from <returnData><creditcardData>
+                var ccEl = root.Descendants(ns + "creditcardData").FirstOrDefault()
+                        ?? root.Descendants("creditcardData").FirstOrDefault();
+
+                var cardBrand    = ccEl?.Element(ns + "type")?.Value ?? ccEl?.Element("type")?.Value;
+                var lastFour     = ccEl?.Element(ns + "lastFourDigits")?.Value ?? ccEl?.Element("lastFourDigits")?.Value;
+                var firstSix     = ccEl?.Element(ns + "firstSixDigits")?.Value ?? ccEl?.Element("firstSixDigits")?.Value;
+
+                // Error details
+                var errEl = root.Descendants(ns + "error").FirstOrDefault()
+                         ?? root.Descendants("error").FirstOrDefault();
+                var errorMsg  = errEl?.Element(ns + "message")?.Value ?? errEl?.Element("message")?.Value;
+                var errorCode = errEl?.Element(ns + "code")?.Value    ?? errEl?.Element("code")?.Value;
+
+                // Chargeback: originalReferenceId lives inside <chargebackData>
+                var cbEl = root.Element(ns + "chargebackData") ?? root.Element("chargebackData");
+                var originalReferenceId = cbEl?.Element(ns + "originalReferenceId")?.Value
+                                       ?? cbEl?.Element("originalReferenceId")?.Value;
+
+                return new AllSecureCallbackResult
+                {
+                    Result              = result,
+                    ReferenceId         = NullIfEmpty(referenceId),
+                    MerchantTransactionId = NullIfEmpty(merchantTxId),
+                    TransactionType     = NullIfEmpty(transactionType),
+                    RegistrationId      = NullIfEmpty(registrationId),
+                    CardBrand           = cardBrand?.ToUpper(),
+                    CardLastFour        = NullIfEmpty(lastFour),
+                    CardFirstSix        = NullIfEmpty(firstSix),
+                    OriginalReferenceId = NullIfEmpty(originalReferenceId),
+                    ErrorMessage        = NullIfEmpty(errorMsg),
+                    ErrorCode           = NullIfEmpty(errorCode),
+                };
+            }
+            catch (Exception ex)
+            {
+                return new AllSecureCallbackResult
+                {
+                    Result       = "ERROR",
+                    ErrorMessage = $"Failed to parse callback XML: {ex.Message}",
+                };
+            }
+        }
+
+        /// <summary>
+        /// Verifies the HMAC-SHA512 signature on an incoming callback request.
+        /// Returns true if the signature is valid (or if no Authorization header was sent — sandbox mode).
+        /// In production you should reject requests where authorizationHeader is null.
+        /// </summary>
+        public bool VerifyCallbackSignature(
+            string method,
+            string rawBody,
+            string contentType,
+            string date,
+            string requestUri,
+            string? authorizationHeader)
+        {
+            if (string.IsNullOrEmpty(authorizationHeader))
+                return true; // No signature — sandbox may omit it; accept for now
+
+            // Reject requests whose Date header is more than 60 seconds old (replay protection)
+            if (!string.IsNullOrEmpty(date)
+                && DateTime.TryParseExact(date, "R", null,
+                    System.Globalization.DateTimeStyles.AdjustToUniversal, out var requestTime)
+                && Math.Abs((DateTime.UtcNow - requestTime).TotalSeconds) > 60)
+            {
+                return false;
+            }
+
+            var expected = BuildAuthHeader(method, rawBody, contentType, date, requestUri);
+            return authorizationHeader == expected;
+        }
 
         // ── Private helpers ────────────────────────────────────────────────────
 
         private string BuildXml(string transactionType, string innerXml) =>
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
-            "<transaction xmlns=\"https://asxgw.com/Schema/V2/Transaction\">\n" +
+            $"<transaction xmlns=\"{_schemaBase}/Schema/V2/Transaction\">\n" +
             $"  <username>{_username}</username>\n" +
             $"  <password>{_passwordHashed}</password>\n" +
             $"  <{transactionType}>\n" +
@@ -169,8 +337,7 @@ namespace WebProdavnica.API.Services
         private async Task<AllSecureResult> PostAsync(string path, string xml)
         {
             const string contentType = "text/xml; charset=utf-8";
-            // Timestamp must be the same value used both in the signature and the Date header
-            var timestamp  = DateTime.UtcNow.ToString("R");  // RFC 1123: "Thu, 01 Jan 1970 00:00:00 GMT"
+            var timestamp  = DateTime.UtcNow.ToString("R");  // RFC 1123
             var authHeader = BuildAuthHeader("POST", xml, contentType, timestamp, path);
 
             var content = new StringContent(xml, Encoding.UTF8, "text/xml");
@@ -181,22 +348,21 @@ namespace WebProdavnica.API.Services
             var client = _httpClientFactory.CreateClient("AllSecure");
             var response = await client.SendAsync(request);
             var body = await response.Content.ReadAsStringAsync();
-            return ParseXmlResponse(body);
+
+            _logger.LogInformation("AllSecure request to {Path}:\n{Xml}", path, xml);
+            _logger.LogInformation("AllSecure response HTTP {Status}:\n{Body}", (int)response.StatusCode, body);
+
+            return ParseResultXml(body);
         }
 
         private string BuildAuthHeader(string method, string body, string contentType, string timestamp, string uri)
         {
-            // Step 1 — SHA-512 hash of the exact bytes of the request body, expressed as lowercase hex
             using var sha512 = SHA512.Create();
             var bodyHash = Convert.ToHexString(
                 sha512.ComputeHash(Encoding.UTF8.GetBytes(body))).ToLower();
 
-            // Step 2 — Build the signing message.
-            // Each part is on its own line. The empty string between timestamp and uri
-            // is the "custom headers" placeholder (we have none).
             var message = string.Join("\n", method, bodyHash, contentType, timestamp, "", uri);
 
-            // Step 3 — HMAC-SHA512 of the message, using sharedSecret as key, Base64-encoded
             using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(_sharedSecret));
             var signature = Convert.ToBase64String(
                 hmac.ComputeHash(Encoding.UTF8.GetBytes(message)));
@@ -204,12 +370,12 @@ namespace WebProdavnica.API.Services
             return $"Gateway {_apiKey}:{signature}";
         }
 
-        private static AllSecureResult ParseXmlResponse(string xml)
+        // Parses the V2/Result XML returned by API calls (NOT callbacks)
+        private AllSecureResult ParseResultXml(string xml)
         {
             try
             {
-                // AllSecure uses a namespace on the result element; try with and without it
-                var ns   = XNamespace.Get("https://asxgw.com/Schema/V2/Result");
+                var ns   = XNamespace.Get($"{_schemaBase}/Schema/V2/Result");
                 var doc  = XDocument.Parse(xml);
                 var root = doc.Root!;
 
@@ -235,9 +401,9 @@ namespace WebProdavnica.API.Services
                 {
                     IsSuccess      = success,
                     ReturnType     = returnType,
-                    ReferenceId    = string.IsNullOrEmpty(referenceId)    ? null : referenceId,
-                    RedirectUrl    = string.IsNullOrEmpty(redirectUrl)    ? null : redirectUrl,
-                    RegistrationId = string.IsNullOrEmpty(registrationId) ? null : registrationId,
+                    ReferenceId    = NullIfEmpty(referenceId),
+                    RedirectUrl    = NullIfEmpty(redirectUrl),
+                    RegistrationId = NullIfEmpty(registrationId),
                     ErrorMessage   = errorMessage,
                 };
             }
@@ -252,7 +418,6 @@ namespace WebProdavnica.API.Services
             }
         }
 
-        // Minimal XML character escaping for values injected into the XML template
         private static string XE(string s) => s
             .Replace("&", "&amp;")
             .Replace("<", "&lt;")
@@ -261,5 +426,8 @@ namespace WebProdavnica.API.Services
 
         private static string Fmt(decimal d) =>
             d.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
+        private static string? NullIfEmpty(string? s) =>
+            string.IsNullOrEmpty(s) ? null : s;
     }
 }
