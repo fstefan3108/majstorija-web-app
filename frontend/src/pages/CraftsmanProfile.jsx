@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Clock, Star, Briefcase, Mail, Phone, DollarSign,
-  Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, AlertTriangle
+  Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import ContactModal from '../components/ContactModal';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -60,6 +61,7 @@ const CraftsmanProfile = () => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showContactModal, setShowContactModal] = useState(false);
 
   useEffect(() => {
     const fetchCraftsmanData = async () => {
@@ -219,7 +221,7 @@ const CraftsmanProfile = () => {
               </div>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-700 flex flex-wrap gap-4">
+            <div className="mt-6 pt-6 border-t border-gray-700 flex flex-wrap items-center gap-4">
               <a
                 href={`mailto:${craftsman.email}`}
                 className="flex items-center gap-2 text-gray-300 hover:text-blue-400 transition"
@@ -235,6 +237,17 @@ const CraftsmanProfile = () => {
                 <Phone className="w-5 h-5" />
                 {craftsman.phone}
               </a>
+
+              {/* Dugme "Kontaktiraj" — prikazuje se samo korisnicima (ne majstorima) */}
+              {user && user.role !== 'Craftsman' && (
+                <button
+                  onClick={() => setShowContactModal(true)}
+                  className="ml-auto flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/20"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Kontaktiraj
+                </button>
+              )}
             </div>
           </div>
 
@@ -408,6 +421,16 @@ const CraftsmanProfile = () => {
       </div>
 
       <Footer />
+
+      {/* Contact Modal */}
+      {showContactModal && user && (
+        <ContactModal
+          craftsman={craftsman}
+          user={user}
+          onClose={() => setShowContactModal(false)}
+          onSuccess={() => setShowContactModal(false)}
+        />
+      )}
     </div>
   );
 };

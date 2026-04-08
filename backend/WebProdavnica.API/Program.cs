@@ -3,6 +3,7 @@ using WebProdavnica.BusinessLayer.Impl;
 using WebProdavnica.DAL.Abstract;
 using WebProdavnica.DAL.Impl;
 using Entities.Configuration;
+using WebProdavnica.Entities.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,11 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
     options.SuppressModelStateInvalidFilter = true;
 });
 
+// SMTP settings (singleton — iz appsettings)
+var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>()
+    ?? new SmtpSettings();
+builder.Services.AddSingleton(smtpSettings);
+
 // REGISTER REPOSITORIES
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
@@ -26,6 +32,8 @@ builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
 builder.Services.AddScoped<IChatRepository, ChatRepository>();
 builder.Services.AddScoped<ICardTokenRepository, CardTokenRepository>();
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
+builder.Services.AddScoped<IJobRequestRepository, JobRequestRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // REGISTER BUSINESS LAYER SERVICES
 builder.Services.AddScoped<IUserService, UserService>();
@@ -37,6 +45,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICardTokenService, CardTokenService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IJobRequestService, JobRequestService>();
 
 // CORS za React
 builder.Services.AddCors(options =>
@@ -78,6 +88,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowReactApp");
+app.UseStaticFiles(); // Sluzi wwwroot/uploads/* za slike zahteva
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();

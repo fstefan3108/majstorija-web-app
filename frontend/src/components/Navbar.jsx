@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { LogOut, Settings, ChevronDown, MessageSquare, ClipboardList } from "lucide-react";
 import Button from "../components/Button";
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -46,6 +47,8 @@ export default function Navbar() {
         <Link to="/contact" className="text-gray-300 hover:text-white font-medium transition-colors">Kontakt</Link>
 
         {isLoggedIn ? (
+          <div className="flex items-center gap-2">
+          <NotificationBell />
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -93,6 +96,7 @@ export default function Navbar() {
                 </div>
               </div>
             )}
+          </div>
           </div>
         ) : (
           <>

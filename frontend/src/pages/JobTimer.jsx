@@ -1,31 +1,44 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Pause, Square, Clock, Loader2, CheckCircle } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Play, Pause, Square, Clock, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ReviewForm from '../components/ReviewForm';
 
 const API_BASE = 'http://localhost:5114';
+const MAX_OVERTIME_SECONDS = 2 * 3600; // 2h max extension
 
 const formatTime = (totalSeconds) => {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
+  const abs = Math.abs(totalSeconds);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const s = abs % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
+// Min 1h billing, then each 15-min quarter above 1h = +hourlyRate/4
+const calculatePrice = (totalSeconds, hourlyRate) => {
+  const totalMinutes = Math.ceil(totalSeconds / 60);
+  if (totalMinutes <= 60) return hourlyRate;
+  const quartersAboveHour = Math.ceil((totalMinutes - 60) / 15);
+  return hourlyRate + quartersAboveHour * (hourlyRate / 4);
 };
 
 export default function JobTimer() {
   const { jobId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReadOnly = searchParams.get('view') === '1';
 
   const [job, setJob] = useState(null);
   const [accumulated, setAccumulated] = useState(0);
-  const [intervalStartedAt, setIntervalStartedAt] = useState(null); // UTC ISO string or null
+  const [intervalStartedAt, setIntervalStartedAt] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [actionLoading, setActionLoading] = useState(false);
   const [finishResult, setFinishResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const timerRef = useRef(null);
 
@@ -34,7 +47,25 @@ export default function JobTimer() {
   const isActive = !!intervalStartedAt;
   const isPaused = !intervalStartedAt && accumulated > 0 && status !== 'ceka potvrdu';
   const isAwaiting = status === 'ceka potvrdu';
-  const currentPrice = ((job?.hourlyRate ?? 0) * (elapsed / 3600)).toFixed(2);
+
+  // Estimated seconds from craftsman's estimate
+  const estimatedSeconds = job?.estimatedMinutes != null
+    ? job.estimatedMinutes * 60
+    : (job?.estimatedHours ?? 0) * 3600;
+
+  // remaining: positive = time left, negative = overtime
+  const remaining = estimatedSeconds - elapsed;
+  const isOvertime = elapsed > 0 && remaining < 0;
+  const overtimeSeconds = isOvertime ? Math.abs(remaining) : 0;
+  const isNearLimit = overtimeSeconds >= MAX_OVERTIME_SECONDS * 0.9;
+
+  // Current price using the billing formula
+  const currentPrice = elapsed > 0 ? calculatePrice(elapsed, job?.hourlyRate ?? 0) : 0;
+
+  // Today check
+  const isScheduledToday = job
+    ? new Date(job.scheduledDate).toDateString() === new Date().toDateString()
+    : null;
 
   const loadTimerState = async () => {
     try {
@@ -43,7 +74,6 @@ export default function JobTimer() {
       setJob(data);
       setAccumulated(data.accumulatedSeconds);
       setIntervalStartedAt(data.currentIntervalStartedAt);
-      // Set initial elapsed so display is correct immediately
       if (data.currentIntervalStartedAt) {
         const diff = Math.floor((Date.now() - new Date(data.currentIntervalStartedAt).getTime()) / 1000);
         setElapsed(data.accumulatedSeconds + Math.max(0, diff));
@@ -57,18 +87,12 @@ export default function JobTimer() {
     }
   };
 
+  useEffect(() => { loadTimerState(); }, [jobId]);
+
   useEffect(() => {
-    loadTimerState();
-  }, [jobId]);
+    if (finishResult) setShowReviewForm(true);
+  }, [finishResult]);
 
-  // Check if job is completed and show review form
-    useEffect(() => {
-      if (finishResult) {
-        setShowReviewForm(true);
-      }
-    }, [finishResult]);
-
-  // Live tick — only when there is an open interval
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (!intervalStartedAt) return;
@@ -83,32 +107,28 @@ export default function JobTimer() {
 
   const call = async (action) => {
     setActionLoading(true);
+    setActionError(null);
     try {
       const res = await fetch(`${API_BASE}/api/joborders/${jobId}/${action}`, { method: 'POST' });
       const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.message || 'Greška pri slanju zahteva.');
+        return;
+      }
 
       if (action === 'finish') {
         setFinishResult(data);
         setIntervalStartedAt(null);
         setJob(prev => ({ ...prev, status: 'Ceka potvrdu' }));
       } else {
-        await loadTimerState(); // Reload to sync state from server
+        await loadTimerState();
       }
     } catch {
-      setError('Greška pri slanju zahteva.');
+      setActionError('Greška pri slanju zahteva.');
     } finally {
       setActionLoading(false);
     }
-  };
-
-  const handleReviewSubmitted = () => {
-    setShowReviewForm(false);
-    // Optionally reload job data or show success message
-    alert('Hvala vam na recenziji! Vaše mišljenje nam je važno.');
-  };
-
-  const handleReviewSkipped = () => {
-    setShowReviewForm(false);
   };
 
   if (loading) {
@@ -127,6 +147,14 @@ export default function JobTimer() {
     );
   }
 
+  // Countdown display: show remaining if positive, show overtime if negative
+  const displaySeconds = remaining >= 0 ? remaining : 0;
+  const displayLabel = isOvertime
+    ? `Prekoračenje: +${formatTime(overtimeSeconds)}`
+    : remaining === 0 && elapsed > 0
+      ? 'Procenjeno vreme isteklo'
+      : isActive ? 'Preostalo vreme' : isPaused ? 'Pauzirano' : isAwaiting ? 'Čeka potvrdu klijenta' : 'Nije početo';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
       <Header />
@@ -138,28 +166,63 @@ export default function JobTimer() {
           <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6">
             <p className="text-gray-400 text-sm mb-1">Posao #{job.jobId}</p>
             <h1 className="text-white font-bold text-xl mb-3">{job.jobDescription || 'Bez opisa'}</h1>
-            <div className="flex gap-6 text-sm text-gray-400">
+            <div className="flex flex-wrap gap-4 text-sm text-gray-400">
               <span>Satnica: <span className="text-white font-medium">{job.hourlyRate?.toLocaleString()} RSD/h</span></span>
-              <span>Procena: <span className="text-white font-medium">{job.estimatedHours}h</span></span>
+              {job.estimatedMinutes != null
+                ? <span>Procena: <span className="text-white font-medium">{Math.floor(job.estimatedMinutes / 60)}h {job.estimatedMinutes % 60}min</span></span>
+                : <span>Procena: <span className="text-white font-medium">{job.estimatedHours}h</span></span>
+              }
             </div>
           </div>
 
+          {/* Not scheduled today warning */}
+          {isScheduledToday === false && !isActive && !isPaused && (
+            <div className="flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-yellow-400 text-sm">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <span>
+                Ovaj posao je zakazan za {new Date(job.scheduledDate).toLocaleDateString('sr-RS', { day: '2-digit', month: 'long', year: 'numeric' })}.
+                Timer možete pokrenuti samo tog dana.
+              </span>
+            </div>
+          )}
+
           {/* Timer display */}
-          <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-8 text-center">
+          <div className={`border rounded-2xl p-8 text-center transition-colors ${
+            isOvertime
+              ? 'bg-red-900/20 border-red-500/40'
+              : 'bg-gray-800/60 border-gray-700'
+          }`}>
             <div className="flex items-center justify-center gap-2 text-gray-400 text-sm mb-4">
               <Clock className="w-4 h-4" />
-              {isActive ? 'Posao u toku' : isPaused ? 'Pauzirano' : isAwaiting ? 'Čeka potvrdu klijenta' : 'Nije početo'}
+              {displayLabel}
             </div>
 
-            <div className={`text-7xl font-mono font-bold mb-4 tabular-nums tracking-tight
-              ${isActive ? 'text-white' : 'text-gray-500'}`}>
-              {formatTime(elapsed)}
+            {/* Main countdown */}
+            <div className={`text-7xl font-mono font-bold mb-2 tabular-nums tracking-tight ${
+              isOvertime ? 'text-red-400' : isActive ? 'text-white' : 'text-gray-500'
+            }`}>
+              {isOvertime ? formatTime(overtimeSeconds) : formatTime(displaySeconds)}
             </div>
+
+            {/* Elapsed (secondary) */}
+            {elapsed > 0 && (
+              <div className="text-gray-500 text-sm mb-4">
+                Utrošeno: {formatTime(elapsed)}
+              </div>
+            )}
 
             <div className="text-2xl font-bold text-blue-400">
-              {Number(currentPrice).toLocaleString('sr-RS', { minimumFractionDigits: 2 })} RSD
+              {currentPrice.toLocaleString('sr-RS', { minimumFractionDigits: 2 })} RSD
             </div>
-            <p className="text-gray-500 text-xs mt-1">Tekuća cena na osnovu utrošenog vremena</p>
+            <p className="text-gray-500 text-xs mt-1">Tekuća cena (min. 1h, zatim kvartovi od 15min)</p>
+
+            {/* Near limit warning */}
+            {isNearLimit && (
+              <div className="mt-4 flex items-center justify-center gap-2 text-red-400 text-sm font-medium">
+                <AlertTriangle className="w-4 h-4" />
+                Blizu maksimalnog prekoračenja od 2h!
+              </div>
+            )}
           </div>
 
           {/* Finish result */}
@@ -175,25 +238,36 @@ export default function JobTimer() {
             </div>
           )}
 
+          {/* Action error */}
+          {actionError && (
+            <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              {actionError}
+            </div>
+          )}
+
           {/* Review Form */}
           {showReviewForm && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
               <ReviewForm
                 jobOrderId={parseInt(jobId)}
-                onReviewSubmitted={handleReviewSubmitted}
-                onCancel={handleReviewSkipped}
+                onReviewSubmitted={() => {
+                  setShowReviewForm(false);
+                  alert('Hvala vam na recenziji! Vaše mišljenje nam je važno.');
+                }}
+                onCancel={() => setShowReviewForm(false)}
               />
             </div>
           )}
 
           {/* Controls */}
-          {!finishResult && (
+          {!finishResult && !isReadOnly && (
             <div className="flex gap-3">
               {isNotStarted && (
                 <button
                   onClick={() => call('start')}
-                  disabled={actionLoading}
-                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-lg transition disabled:opacity-50"
+                  disabled={actionLoading || isScheduledToday === false}
+                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
                   Počni

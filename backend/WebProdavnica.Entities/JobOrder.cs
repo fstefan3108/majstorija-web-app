@@ -18,8 +18,9 @@ namespace WebProdavnica.Entities
         public int EstimatedHours { get; set; }
         public DateTime? StartedAt { get; set; }     
         public DateTime? EndedAt { get; set; }       
-        public int? ActualSeconds { get; set; }   
-
+        public int? ActualSeconds { get; set; }
+        public int? EstimatedMinutes { get; set; }  // procena majstora u minutima
+        public int? JobRequestId { get; set; }      // FK na job_requests
 
         public int UserId { get; set; }
         public int CraftsmanId { get; set; }

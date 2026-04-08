@@ -320,7 +320,9 @@ namespace WebProdavnica.API.Controllers
                 jobDescription = job.JobDescription,
                 hourlyRate = job.HourlyRate,
                 estimatedHours = job.EstimatedHours,
+                estimatedMinutes = job.EstimatedMinutes,
                 estimatedPrice = job.TotalPrice,
+                scheduledDate = job.ScheduledDate,
                 accumulatedSeconds = state.AccumulatedSeconds,
                 currentIntervalStartedAt = state.CurrentIntervalStartedAt,
             });
@@ -330,8 +332,12 @@ namespace WebProdavnica.API.Controllers
         [HttpPost("{id}/start")]
         public IActionResult Start(int id)
         {
+            var job = _jobOrderService.Get(id);
+            if (job != null && job.ScheduledDate.Date != DateTime.UtcNow.Date)
+                return BadRequest(new { success = false, message = $"Timer se može pokrenuti samo na zakazani dan ({job.ScheduledDate:dd.MM.yyyy})." });
+
             var ok = _jobOrderService.StartTimer(id);
-            return ok ? Ok(new { success = true }) : BadRequest(new { success = false });
+            return ok ? Ok(new { success = true }) : BadRequest(new { success = false, message = "Timer nije mogao biti pokrenut." });
         }
 
         // POST /api/joborders/{id}/pause

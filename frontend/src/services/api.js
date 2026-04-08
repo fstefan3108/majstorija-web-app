@@ -148,6 +148,89 @@ async updateUser(id, userData) {
   async getCraftsmanReviews(craftsmanId) {
     return this.request(`/craftsmen/${craftsmanId}/reviews`);
   }
+
+  // ── Job Requests ──────────────────────────────────────────────────────────
+
+  async createJobRequest(data) {
+    return this.request('/job-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadJobRequestImage(requestId, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('accessToken');
+    const url = `${API_BASE_URL}/job-requests/${requestId}/upload-image`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload greška');
+    return data;
+  }
+
+  async getJobRequest(id) {
+    return this.request(`/job-requests/${id}`);
+  }
+
+  async getJobRequestsByUser(userId) {
+    return this.request(`/job-requests/user/${userId}`);
+  }
+
+  async getJobRequestsByCraftsman(craftsmanId) {
+    return this.request(`/job-requests/craftsman/${craftsmanId}`);
+  }
+
+  async acceptJobRequest(id, estimatedHours, estimatedMinutes) {
+    return this.request(`/job-requests/${id}/accept`, {
+      method: 'POST',
+      body: JSON.stringify({ estimatedHours, estimatedMinutes }),
+    });
+  }
+
+  async declineJobRequest(id, by) {
+    return this.request(`/job-requests/${id}/decline?by=${by}`, {
+      method: 'POST',
+    });
+  }
+
+  async confirmJobRequest(id) {
+    return this.request(`/job-requests/${id}/confirm`, {
+      method: 'POST',
+    });
+  }
+
+  async createJobOrderFromRequest(requestId) {
+    return this.request(`/job-requests/${requestId}/create-job-order`, {
+      method: 'POST',
+    });
+  }
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+
+  async getNotifications(recipientId, recipientType, limit = 50) {
+    return this.request(`/notifications?recipientId=${recipientId}&recipientType=${recipientType}&limit=${limit}`);
+  }
+
+  async getUnreadCount(recipientId, recipientType) {
+    return this.request(`/notifications/unread-count?recipientId=${recipientId}&recipientType=${recipientType}`);
+  }
+
+  async markNotificationRead(notificationId) {
+    return this.request(`/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+    });
+  }
+
+  async markAllNotificationsRead(recipientId, recipientType) {
+    return this.request(`/notifications/read-all?recipientId=${recipientId}&recipientType=${recipientType}`, {
+      method: 'PATCH',
+    });
+  }
 }
 
 export default new ApiService();

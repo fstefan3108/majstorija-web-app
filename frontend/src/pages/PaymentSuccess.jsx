@@ -44,6 +44,7 @@ export default function PaymentSuccess() {
       pollStatus(pendingTransactionId);
     } else {
       // Direct preauth (returning user, FINISHED immediately) — no polling needed
+      sessionStorage.removeItem('checkoutData');
       setState('success');
     }
   }, []);
@@ -57,6 +58,7 @@ export default function PaymentSuccess() {
         if (data.status === 'Preauthorized') {
           sessionStorage.removeItem('pendingTransactionId');
           sessionStorage.removeItem('pendingJobId');
+          sessionStorage.removeItem('checkoutData');
           setState('success');
           return;
         }
@@ -85,6 +87,7 @@ export default function PaymentSuccess() {
     // AllSecure guarantees delivery; status will be updated when it arrives.
     sessionStorage.removeItem('pendingTransactionId');
     sessionStorage.removeItem('pendingJobId');
+    sessionStorage.removeItem('checkoutData');
     setState('success');
   };
 

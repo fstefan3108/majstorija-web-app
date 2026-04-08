@@ -15,6 +15,8 @@ namespace WebProdavnica.API.Controllers
         private readonly ICardTokenService _cardTokenService;
         private readonly IJobOrderService _jobOrderService;
         private readonly IUserService _userService;
+        private readonly ICraftsmanService _craftsmanService;
+        private readonly INotificationService _notificationService;
         private readonly AllSecureClient _allSecure;
 
         public PaymentsController(
@@ -22,12 +24,16 @@ namespace WebProdavnica.API.Controllers
             ICardTokenService cardTokenService,
             IJobOrderService jobOrderService,
             IUserService userService,
+            ICraftsmanService craftsmanService,
+            INotificationService notificationService,
             AllSecureClient allSecure)
         {
             _paymentService = paymentService;
             _cardTokenService = cardTokenService;
             _jobOrderService = jobOrderService;
             _userService = userService;
+            _craftsmanService = craftsmanService;
+            _notificationService = notificationService;
             _allSecure = allSecure;
         }
 
@@ -267,7 +273,25 @@ namespace WebProdavnica.API.Controllers
 
         // ── Private helpers ───────────────────────────────────────────────────
 
-        private Task HandlePreauthCallback(int jobId, AllSecureCallbackResult cb)
+        private async Task NotifyCraftsmanPaymentAsync(int jobId)
+        {
+            var job = _jobOrderService.Get(jobId);
+            if (job == null) return;
+            var craftsman = _craftsmanService.Get(job.CraftsmanId);
+            if (craftsman == null) return;
+            var dateStr = job.ScheduledDate.ToString("dd.MM.yyyy");
+            await _notificationService.SendAsync(new Notification
+            {
+                RecipientId = job.CraftsmanId,
+                RecipientType = "craftsman",
+                Type = "job_confirmed",
+                Title = "Posao zakazan!",
+                Message = $"Korisnik je potvrdio i platio rezervaciju. Posao \"{job.JobDescription}\" zakazan za {dateStr}.",
+                RelatedEntityId = jobId,
+            }, craftsman.Email ?? "");
+        }
+
+        private async Task HandlePreauthCallback(int jobId, AllSecureCallbackResult cb)
         {
             if (cb.IsSuccess)
             {
@@ -285,13 +309,13 @@ namespace WebProdavnica.API.Controllers
                         _cardTokenService.Save(job.UserId, cb.RegistrationId, cb.CardBrand, masked);
                     }
                 }
+
+                await NotifyCraftsmanPaymentAsync(jobId);
             }
             else
             {
                 _paymentService.UpdateStatus(jobId, "Failed");
             }
-
-            return Task.CompletedTask;
         }
 
         private IActionResult HandlePreauthFinished(
@@ -316,6 +340,8 @@ namespace WebProdavnica.API.Controllers
                 PaymentStatus = "Preauthorized",
                 TransactionId = result.ReferenceId!,
             });
+
+            _ = NotifyCraftsmanPaymentAsync(request.JobId);
 
             return Ok(new { status = "preauthorized", transactionId = result.ReferenceId, preauthAmount });
         }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, Search, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { MessageCircle, Search, CheckCircle, Clock, AlertCircle, ChevronRight, Calendar, AlertTriangle, XCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -95,14 +95,17 @@ export default function UserDashboard() {
   const [userData, setUserData] = useState(null);
   const [originalUserData, setOriginalUserData] = useState(null);
   const [services, setServices] = useState([]);
+  const [jobRequests, setJobRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [capturingId, setCapturingId] = useState(null);
+  const [requestActionId, setRequestActionId] = useState(null);
 
   useEffect(() => {
     if (user) {
       fetchProfile();
       fetchJobs();
+      fetchJobRequests();
     }
   }, [user]);
 
@@ -124,6 +127,59 @@ export default function UserDashboard() {
     } catch (err) {
       console.error('Error fetching profile:', err);
       setError('Greška pri učitavanju profila');
+    }
+  };
+
+  const fetchJobRequests = async () => {
+    try {
+      const res = await api.getJobRequestsByUser(user.id);
+      const list = res.data || res;
+      // Prikazujemo pending (čeka majstora) i accepted (čeka korisnika da potvrdi)
+      const active = Array.isArray(list)
+        ? list.filter(r => r.status === 'pending' || r.status === 'accepted')
+        : [];
+      setJobRequests(active);
+    } catch {
+      // Tiho ignoriši
+    }
+  };
+
+  const handleConfirmRequest = async (req) => {
+    setRequestActionId(req.requestId);
+    try {
+      // 1. Korisnik potvrdjuje ponudu majstora
+      await api.confirmJobRequest(req.requestId);
+
+      // 2. Kreira se job_order u bazi — jobId je potreban za AllSecure callback
+      const createRes = await api.createJobOrderFromRequest(req.requestId);
+      if (!createRes.success) throw new Error('Kreiranje posla nije uspelo.');
+
+      setJobRequests(prev => prev.filter(r => r.requestId !== req.requestId));
+
+      // 3. Checkout dobija sve potrebne podatke
+      navigate('/checkout', {
+        state: {
+          fromRequest: req,
+          jobOrderId: createRes.jobOrderId,
+        }
+      });
+    } catch (err) {
+      alert('Greška: ' + err.message);
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
+  const handleDeclineRequest = async (requestId) => {
+    if (!confirm('Da li ste sigurni da želite da odbijete ponudu majstora?')) return;
+    setRequestActionId(requestId);
+    try {
+      await api.declineJobRequest(requestId, 'user');
+      setJobRequests(prev => prev.filter(r => r.requestId !== requestId));
+    } catch (err) {
+      alert('Greška: ' + err.message);
+    } finally {
+      setRequestActionId(null);
     }
   };
 
@@ -232,6 +288,96 @@ export default function UserDashboard() {
           {error && (
             <div className="mt-6 bg-red-500/20 border border-red-500 rounded-lg p-4">
               <p className="text-red-500">{error}</p>
+            </div>
+          )}
+
+          {/* Zahtevi za posao — pending i accepted */}
+          {jobRequests.length > 0 && (
+            <div className="mt-10 bg-[#1e2028] rounded-2xl p-6 lg:p-8 border border-blue-500/30">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse" />
+                <h2 className="text-xl font-bold text-white">Zahtevi za posao</h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-semibold border border-blue-500/30">
+                  {jobRequests.length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {jobRequests.map((req) => (
+                  <div
+                    key={req.requestId}
+                    className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition ${
+                      req.status === 'accepted'
+                        ? 'bg-green-900/10 border-green-500/30'
+                        : 'bg-blue-900/10 border-blue-500/20'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-white font-semibold truncate">{req.title}</span>
+                        {req.status === 'pending' && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex-shrink-0">
+                            Čeka majstora
+                          </span>
+                        )}
+                        {req.status === 'accepted' && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 flex-shrink-0">
+                            Majstor prihvatio
+                          </span>
+                        )}
+                        {req.urgent && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-xs flex-shrink-0">
+                            <AlertTriangle className="w-3 h-3" /> Hitno
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-sm truncate">{req.description}</p>
+                      <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(req.scheduledDate).toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </p>
+
+                      {/* Procena majstora */}
+                      {req.status === 'accepted' && req.estimatedMinutes != null && (
+                        <div className="mt-2 flex gap-4 text-sm">
+                          <span className="text-gray-300">
+                            Vreme: <span className="text-white font-medium">
+                              {Math.floor(req.estimatedMinutes / 60)}h {req.estimatedMinutes % 60}min
+                            </span>
+                          </span>
+                          {req.estimatedPrice != null && (
+                            <span className="text-gray-300">
+                              Cena: <span className="text-white font-medium">
+                                {Number(req.estimatedPrice).toLocaleString('sr-RS')} RSD
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Akcije — samo za accepted */}
+                    {req.status === 'accepted' && (
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleDeclineRequest(req.requestId)}
+                          disabled={requestActionId === req.requestId}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition text-sm font-medium disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4" /> Odbij
+                        </button>
+                        <button
+                          onClick={() => handleConfirmRequest(req)}
+                          disabled={requestActionId === req.requestId}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white transition text-sm font-semibold disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          {requestActionId === req.requestId ? 'Obrađuje...' : 'Prihvati'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

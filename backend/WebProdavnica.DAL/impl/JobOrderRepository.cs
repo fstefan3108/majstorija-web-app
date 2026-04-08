@@ -11,24 +11,26 @@ namespace WebProdavnica.DAL.Impl
         private const string SelectColumns = @"
             job_id, scheduled_date, job_description, status, urgent,
             total_price, user_id, craftsman_id, hourly_rate, estimated_hours,
-            started_at, ended_at, actual_seconds";
+            started_at, ended_at, actual_seconds, estimated_minutes, job_request_id";
 
         // Indices match SelectColumns above (0-based).
         private static JobOrder Map(SqlDataReader r) => new JobOrder
         {
-            JobId          = r.GetInt32(0),
-            ScheduledDate  = r.GetDateTime(1),
-            JobDescription = r.IsDBNull(2)  ? null : r.GetString(2),
-            Status         = r.IsDBNull(3)  ? null : r.GetString(3),
-            Urgent         = r.GetBoolean(4),
-            TotalPrice     = r.GetDecimal(5),
-            UserId         = r.GetInt32(6),
-            CraftsmanId    = r.GetInt32(7),
-            HourlyRate     = r.IsDBNull(8)  ? 0    : r.GetDecimal(8),
-            EstimatedHours = r.IsDBNull(9)  ? 0    : r.GetInt32(9),
-            StartedAt      = r.IsDBNull(10) ? null : r.GetDateTime(10),
-            EndedAt        = r.IsDBNull(11) ? null : r.GetDateTime(11),
-            ActualSeconds  = r.IsDBNull(12) ? null : r.GetInt32(12),
+            JobId            = r.GetInt32(0),
+            ScheduledDate    = r.GetDateTime(1),
+            JobDescription   = r.IsDBNull(2)  ? null : r.GetString(2),
+            Status           = r.IsDBNull(3)  ? null : r.GetString(3),
+            Urgent           = r.GetBoolean(4),
+            TotalPrice       = r.GetDecimal(5),
+            UserId           = r.GetInt32(6),
+            CraftsmanId      = r.GetInt32(7),
+            HourlyRate       = r.IsDBNull(8)  ? 0    : r.GetDecimal(8),
+            EstimatedHours   = r.IsDBNull(9)  ? 0    : r.GetInt32(9),
+            StartedAt        = r.IsDBNull(10) ? null : r.GetDateTime(10),
+            EndedAt          = r.IsDBNull(11) ? null : r.GetDateTime(11),
+            ActualSeconds    = r.IsDBNull(12) ? null : r.GetInt32(12),
+            EstimatedMinutes = r.IsDBNull(13) ? null : r.GetInt32(13),
+            JobRequestId     = r.IsDBNull(14) ? null : r.GetInt32(14),
         };
 
         // ── CRUD ──────────────────────────────────────────────────────────────
@@ -40,19 +42,22 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 INSERT INTO dbo.job_orders
                     (scheduled_date, job_description, status, urgent, total_price,
-                     user_id, craftsman_id, hourly_rate, estimated_hours)
+                     user_id, craftsman_id, hourly_rate, estimated_hours,
+                     estimated_minutes, job_request_id)
                 OUTPUT INSERTED.job_id
-                VALUES (@sd, @jd, @st, @u, @tp, @uid, @cid, @hr, @eh)";
+                VALUES (@sd, @jd, @st, @u, @tp, @uid, @cid, @hr, @eh, @em, @jrid)";
 
-            cmd.Parameters.AddWithValue("@sd", j.ScheduledDate);
-            cmd.Parameters.AddWithValue("@jd", j.JobDescription ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@st", j.Status ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@u", j.Urgent);
-            cmd.Parameters.AddWithValue("@tp", j.TotalPrice);
-            cmd.Parameters.AddWithValue("@uid", j.UserId);
-            cmd.Parameters.AddWithValue("@cid", j.CraftsmanId);
-            cmd.Parameters.AddWithValue("@hr", j.HourlyRate);
-            cmd.Parameters.AddWithValue("@eh", j.EstimatedHours);
+            cmd.Parameters.AddWithValue("@sd",   j.ScheduledDate);
+            cmd.Parameters.AddWithValue("@jd",   j.JobDescription ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@st",   j.Status ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@u",    j.Urgent);
+            cmd.Parameters.AddWithValue("@tp",   j.TotalPrice);
+            cmd.Parameters.AddWithValue("@uid",  j.UserId);
+            cmd.Parameters.AddWithValue("@cid",  j.CraftsmanId);
+            cmd.Parameters.AddWithValue("@hr",   j.HourlyRate);
+            cmd.Parameters.AddWithValue("@eh",   j.EstimatedHours);
+            cmd.Parameters.AddWithValue("@em",   j.EstimatedMinutes ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@jrid", j.JobRequestId ?? (object)DBNull.Value);
 
             var newId = cmd.ExecuteScalar();
             if (newId == null) return false;
@@ -109,19 +114,23 @@ namespace WebProdavnica.DAL.Impl
                     estimated_hours=@eh,
                     started_at=@sa,
                     ended_at=@ea,
-                    actual_seconds=@as
+                    actual_seconds=@as,
+                    estimated_minutes=@em,
+                    job_request_id=@jrid
                 WHERE job_id=@id";
-            cmd.Parameters.AddWithValue("@sd", j.ScheduledDate);
-            cmd.Parameters.AddWithValue("@jd", j.JobDescription ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@st", j.Status ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@u", j.Urgent);
-            cmd.Parameters.AddWithValue("@tp", j.TotalPrice);
-            cmd.Parameters.AddWithValue("@hr", j.HourlyRate);
-            cmd.Parameters.AddWithValue("@eh", j.EstimatedHours);
-            cmd.Parameters.AddWithValue("@sa", j.StartedAt ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@ea", j.EndedAt ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@as", j.ActualSeconds ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@id", j.JobId);
+            cmd.Parameters.AddWithValue("@sd",   j.ScheduledDate);
+            cmd.Parameters.AddWithValue("@jd",   j.JobDescription ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@st",   j.Status ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@u",    j.Urgent);
+            cmd.Parameters.AddWithValue("@tp",   j.TotalPrice);
+            cmd.Parameters.AddWithValue("@hr",   j.HourlyRate);
+            cmd.Parameters.AddWithValue("@eh",   j.EstimatedHours);
+            cmd.Parameters.AddWithValue("@sa",   j.StartedAt ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ea",   j.EndedAt ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@as",   j.ActualSeconds ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@em",   j.EstimatedMinutes ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@jrid", j.JobRequestId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@id",   j.JobId);
             return cmd.ExecuteNonQuery() > 0;
         }
 
@@ -141,16 +150,21 @@ namespace WebProdavnica.DAL.Impl
         // ── Timer operations ──────────────────────────────────────────────────
         public bool StartTimer(int jobId)
         {
+            // Only allow start on the scheduled day
+            var job = Get(jobId);
+            if (job == null) return false;
+            if (job.ScheduledDate.Date != DateTime.UtcNow.Date) return false;
+
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             using var tx = conn.BeginTransaction();
             try
             {
-                // Record started_at on job (only if not already started)
+                // Record started_at on job (only if not already started) + set status
                 var c1 = conn.CreateCommand();
                 c1.Transaction = tx;
                 c1.CommandText = @"UPDATE dbo.job_orders
-                    SET started_at = GETUTCDATE()
+                    SET started_at = GETUTCDATE(), status = 'U toku'
                     WHERE job_id = @id AND started_at IS NULL";
                 c1.Parameters.AddWithValue("@id", jobId);
                 c1.ExecuteNonQuery();
@@ -255,7 +269,7 @@ namespace WebProdavnica.DAL.Impl
                 decimal hourlyRate = r.GetDecimal(1);
                 r.Close();
 
-                decimal actualPrice = Math.Round(hourlyRate * (actualSeconds / 3600.0m), 2);
+                decimal actualPrice = CalculatePrice(actualSeconds, hourlyRate);
 
                 // Update job with final values
                 var c3 = conn.CreateCommand();
@@ -286,6 +300,16 @@ namespace WebProdavnica.DAL.Impl
                 };
             }
             catch { tx.Rollback(); throw; }
+        }
+
+        // Min 1h billing, then each 15-min quarter above 1h = +hourlyRate/4
+        private static decimal CalculatePrice(int totalSeconds, decimal hourlyRate)
+        {
+            int totalMinutes = (int)Math.Ceiling(totalSeconds / 60.0);
+            if (totalMinutes <= 60)
+                return Math.Round(hourlyRate, 2);
+            int quartersAboveHour = (int)Math.Ceiling((totalMinutes - 60) / 15.0);
+            return Math.Round(hourlyRate + quartersAboveHour * (hourlyRate / 4m), 2);
         }
 
         public TimerState GetTimerState(int jobId)
