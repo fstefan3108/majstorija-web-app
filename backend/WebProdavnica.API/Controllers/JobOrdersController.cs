@@ -144,12 +144,32 @@ namespace WebProdavnica.API.Controllers
                     .Where(j => j.CraftsmanId == craftsmanId)
                     .ToList();
 
+                var data = jobOrders.Select(j => new
+                {
+                    j.JobId,
+                    j.ScheduledDate,
+                    j.JobDescription,
+                    j.Status,
+                    j.Urgent,
+                    j.TotalPrice,
+                    j.UserId,
+                    j.CraftsmanId,
+                    j.HourlyRate,
+                    j.EstimatedHours,
+                    j.EstimatedMinutes,
+                    j.StartedAt,
+                    j.EndedAt,
+                    j.ActualSeconds,
+                    j.JobRequestId,
+                    rating = _reviewService.GetReviewByJobId(j.JobId)?.Rating,
+                }).ToList();
+
                 return Ok(new
                 {
                     success = true,
                     craftsmanId = craftsmanId,
-                    data = jobOrders,
-                    count = jobOrders.Count
+                    data,
+                    count = data.Count
                 });
             }
             catch (Exception ex)
