@@ -3,7 +3,6 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Play, Pause, Square, Clock, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import ReviewForm from '../components/ReviewForm';
 
 const API_BASE = 'http://localhost:5114';
 const MAX_OVERTIME_SECONDS = 2 * 3600; // 2h max extension
@@ -39,8 +38,7 @@ export default function JobTimer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const timerRef = useRef(null);
+const timerRef = useRef(null);
 
   const status = job?.status?.toLowerCase() ?? '';
   const isNotStarted = !intervalStartedAt && accumulated === 0 && status !== 'pauzirano' && status !== 'ceka potvrdu';
@@ -88,10 +86,6 @@ export default function JobTimer() {
   };
 
   useEffect(() => { loadTimerState(); }, [jobId]);
-
-  useEffect(() => {
-    if (finishResult) setShowReviewForm(true);
-  }, [finishResult]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -246,27 +240,13 @@ export default function JobTimer() {
             </div>
           )}
 
-          {/* Review Form */}
-          {showReviewForm && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <ReviewForm
-                jobOrderId={parseInt(jobId)}
-                onReviewSubmitted={() => {
-                  setShowReviewForm(false);
-                  alert('Hvala vam na recenziji! Vaše mišljenje nam je važno.');
-                }}
-                onCancel={() => setShowReviewForm(false)}
-              />
-            </div>
-          )}
-
           {/* Controls */}
           {!finishResult && !isReadOnly && (
             <div className="flex gap-3">
               {isNotStarted && (
                 <button
                   onClick={() => call('start')}
-                  disabled={actionLoading || isScheduledToday === false}
+                  disabled={actionLoading}
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}

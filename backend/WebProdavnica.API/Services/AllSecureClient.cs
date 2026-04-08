@@ -183,8 +183,7 @@ namespace WebProdavnica.API.Services
             var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
     <referenceTransactionId>{XE(preauthorizeReferenceId)}</referenceTransactionId>
     <amount>{Fmt(amount)}</amount>
-    <currency>{currency}</currency>
-    <callbackUrl>{XE($"{_callbackUrl}/{jobId}")}</callbackUrl>";
+    <currency>{currency}</currency>";
 
             return PostTransactionAsync("capture", inner);
         }

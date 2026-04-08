@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Star, Send, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const StarRating = ({ rating, onRatingChange, size = 'lg' }) => {
   const [hoverRating, setHoverRating] = useState(0);
@@ -23,6 +24,7 @@ const StarRating = ({ rating, onRatingChange, size = 'lg' }) => {
 };
 
 const ReviewForm = ({ jobOrderId, onReviewSubmitted, onCancel }) => {
+  const { user } = useAuth();
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,13 +47,12 @@ const ReviewForm = ({ jobOrderId, onReviewSubmitted, onCancel }) => {
     setError(null);
 
     try {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
+      if (!user?.id) {
         setError('Niste prijavljeni.');
         return;
       }
 
-      await api.submitJobReview(jobOrderId, rating, comment, parseInt(userId));
+      await api.submitJobReview(jobOrderId, rating, comment, user.id);
       onReviewSubmitted();
     } catch (err) {
       setError(err.message || 'Došlo je do greške prilikom slanja recenzije.');

@@ -153,7 +153,7 @@ namespace WebProdavnica.DAL.Impl
             // Only allow start on the scheduled day
             var job = Get(jobId);
             if (job == null) return false;
-            if (job.ScheduledDate.Date != DateTime.UtcNow.Date) return false;
+            // if (job.ScheduledDate.Date != DateTime.UtcNow.Date) return false; // TESTING: uklonjen datum check
 
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
@@ -261,7 +261,8 @@ namespace WebProdavnica.DAL.Impl
                         j.hourly_rate
                     FROM dbo.job_intervals i
                     JOIN dbo.job_orders j ON j.job_id = i.job_id
-                    WHERE i.job_id = @id";
+                    WHERE i.job_id = @id
+                    GROUP BY j.hourly_rate";
                 c2.Parameters.AddWithValue("@id", jobId);
                 var r = c2.ExecuteReader();
                 r.Read();
@@ -340,7 +341,7 @@ namespace WebProdavnica.DAL.Impl
                 AccumulatedSeconds = accumulated,
                 CurrentIntervalStartedAt = (raw == null || raw == DBNull.Value)
                                            ? null
-                                           : (DateTime?)Convert.ToDateTime(raw),
+                                           : (DateTime?)DateTime.SpecifyKind(Convert.ToDateTime(raw), DateTimeKind.Utc),
             };
         }
     }
