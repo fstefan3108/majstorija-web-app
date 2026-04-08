@@ -18,7 +18,6 @@ function CaptureCard({ service, onCapture, capturing }) {
   const autoFiredRef = useRef(false);
 
   useEffect(() => {
-    // Fallback: if endedAt is missing, use "now" so countdown starts from full 30 min
     const base = service.endedAt ? new Date(service.endedAt).getTime() : Date.now();
     const deadline = base + AUTO_CONFIRM_SECONDS * 1000;
 
@@ -115,9 +114,7 @@ export default function UserDashboard() {
     try {
       const response = await api.getUserProfile(user.id);
       const userProfile = response.data || response;
-
       setOriginalUserData(userProfile);
-
       setUserData({
         userId: userProfile.userId,
         firstName: userProfile.firstName,
@@ -136,7 +133,6 @@ export default function UserDashboard() {
     try {
       const res = await api.getJobRequestsByUser(user.id);
       const list = res.data || res;
-      // Prikazujemo pending (čeka majstora) i accepted (čeka korisnika da potvrdi)
       const active = Array.isArray(list)
         ? list.filter(r => r.status === 'pending' || r.status === 'accepted')
         : [];
@@ -149,16 +145,10 @@ export default function UserDashboard() {
   const handleConfirmRequest = async (req) => {
     setRequestActionId(req.requestId);
     try {
-      // 1. Korisnik potvrdjuje ponudu majstora
       await api.confirmJobRequest(req.requestId);
-
-      // 2. Kreira se job_order u bazi — jobId je potreban za AllSecure callback
       const createRes = await api.createJobOrderFromRequest(req.requestId);
       if (!createRes.success) throw new Error('Kreiranje posla nije uspelo.');
-
       setJobRequests(prev => prev.filter(r => r.requestId !== req.requestId));
-
-      // 3. Checkout dobija sve potrebne podatke
       navigate('/checkout', {
         state: {
           fromRequest: req,
@@ -202,7 +192,7 @@ export default function UserDashboard() {
   };
 
   const handleCapture = async (jobId) => {
-    if (capturingId) return; // prevent double-click
+    if (capturingId) return;
     setCapturingId(jobId);
     try {
       const res = await fetch(`${API_BASE}/api/payments/${jobId}/capture`, {
@@ -232,9 +222,7 @@ export default function UserDashboard() {
         phone: updatedData.phone,
         location: updatedData.location,
       };
-
       const response = await api.updateUser(user.id, userUpdate);
-
       if (response.success) {
         setOriginalUserData(userUpdate);
         setUserData(updatedData);
@@ -255,9 +243,9 @@ export default function UserDashboard() {
 
   if (!userData) {
     return (
-      <div className="min-h-screen bg-[#121418] flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-[#2324fe] border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-400">Učitavanje...</p>
         </div>
       </div>
@@ -265,7 +253,7 @@ export default function UserDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#121418] flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
       <Header />
 
       <main className="flex-1 p-6 lg:p-10">
@@ -273,30 +261,32 @@ export default function UserDashboard() {
           <div className="mb-6 flex justify-between items-center">
             <div className="text-white">
               <h1 className="text-2xl font-bold">Dobrodošli, {userData.firstName}!</h1>
-              <p className="text-gray-400">Email: {userData.email}</p>
+              <p className="text-gray-300">Email: {userData.email}</p>
             </div>
             <Link to="/chat">
-              <button className="flex items-center gap-2 px-6 py-3 bg-[#2324fe] text-white rounded-lg hover:bg-[#1a1bca] transition">
+              <button className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold">
                 <MessageCircle className="w-5 h-5" />
                 Moje Poruke
               </button>
             </Link>
           </div>
 
-          <UserProfile
-            data={userData}
-            onUpdate={handleProfileUpdate}
-          />
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
+            <UserProfile
+              data={userData}
+              onUpdate={handleProfileUpdate}
+            />
+          </div>
 
           {error && (
-            <div className="mt-6 bg-red-500/20 border border-red-500 rounded-lg p-4">
-              <p className="text-red-500">{error}</p>
+            <div className="mt-6 bg-red-500/20 border border-red-500 rounded-2xl p-4">
+              <p className="text-red-400">{error}</p>
             </div>
           )}
 
           {/* Zahtevi za posao — pending i accepted */}
           {jobRequests.length > 0 && (
-            <div className="mt-10 bg-[#1e2028] rounded-2xl p-6 lg:p-8 border border-blue-500/30">
+            <div className="mt-10 bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 lg:p-8 border border-blue-500/30">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse" />
                 <h2 className="text-xl font-bold text-white">Zahtevi za posao</h2>
@@ -386,7 +376,7 @@ export default function UserDashboard() {
 
           {/* Pending confirmation panel */}
           {pendingConfirmation.length > 0 && (
-            <div className="mt-10 bg-[#1e2028] rounded-2xl p-6 lg:p-8 border border-yellow-500/30">
+            <div className="mt-10 bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 lg:p-8 border border-yellow-500/30">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse" />
                 <h2 className="text-xl font-bold text-white">Potrebna potvrda</h2>
@@ -411,10 +401,10 @@ export default function UserDashboard() {
             </div>
           )}
 
-          <div className="mt-10">
+          <div className="mt-10 bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
             {isLoading ? (
-              <div className="bg-[#1e2028] rounded-2xl p-8 border border-gray-700 text-center">
-                <div className="animate-spin w-8 h-8 border-4 border-[#2324fe] border-t-transparent rounded-full mx-auto mb-4"></div>
+              <div className="text-center py-8">
+                <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                 <p className="text-gray-400">Učitavanje poslova...</p>
               </div>
             ) : (
