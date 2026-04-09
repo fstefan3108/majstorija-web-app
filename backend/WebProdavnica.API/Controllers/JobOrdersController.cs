@@ -13,12 +13,14 @@ namespace WebProdavnica.API.Controllers
         private readonly IJobOrderService _jobOrderService;
         private readonly ICraftsmanService _craftsmanService;
         private readonly IReviewService _reviewService;
+        private readonly IJobRequestService _jobRequestService;
 
-        public JobOrdersController(IJobOrderService jobOrderService, ICraftsmanService craftsmanService, IReviewService reviewService)
+        public JobOrdersController(IJobOrderService jobOrderService, ICraftsmanService craftsmanService, IReviewService reviewService, IJobRequestService jobRequestService)
         {
             _jobOrderService = jobOrderService;
             _craftsmanService = craftsmanService;
             _reviewService = reviewService;
+            _jobRequestService = jobRequestService;
         }
 
         // POST: api/joborders
@@ -31,7 +33,6 @@ namespace WebProdavnica.API.Controllers
                 {
                     ScheduledDate = request.ScheduledDate,
                     JobDescription = request.JobDescription,
-                    Urgent = request.Urgent,
                     TotalPrice = request.TotalPrice,
                     HourlyRate = request.HourlyRate,     
                     EstimatedHours = request.EstimatedHours,  
@@ -57,7 +58,6 @@ namespace WebProdavnica.API.Controllers
                                 scheduledDate = newJobOrder.ScheduledDate,
                                 jobDescription = newJobOrder.JobDescription,
                                 status = newJobOrder.Status,
-                                urgent = newJobOrder.Urgent,
                                 totalPrice = newJobOrder.TotalPrice,
                                 userId = newJobOrder.UserId,
                                 craftsmanId = newJobOrder.CraftsmanId
@@ -116,12 +116,34 @@ namespace WebProdavnica.API.Controllers
                     .Where(j => j.UserId == userId)
                     .ToList();
 
+                var data = jobOrders.Select(j => new
+                {
+                    j.JobId,
+                    j.ScheduledDate,
+                    j.JobDescription,
+                    j.Status,
+                    j.TotalPrice,
+                    j.UserId,
+                    j.CraftsmanId,
+                    j.HourlyRate,
+                    j.EstimatedHours,
+                    j.EstimatedMinutes,
+                    j.StartedAt,
+                    j.EndedAt,
+                    j.ActualSeconds,
+                    j.JobRequestId,
+                    title = j.JobRequestId.HasValue
+                        ? _jobRequestService.Get(j.JobRequestId.Value)?.Title
+                        : null,
+                    rating = _reviewService.GetReviewByJobId(j.JobId)?.Rating,
+                }).ToList();
+
                 return Ok(new
                 {
                     success = true,
                     userId = userId,
-                    data = jobOrders,
-                    count = jobOrders.Count
+                    data,
+                    count = data.Count
                 });
             }
             catch (Exception ex)
@@ -144,12 +166,34 @@ namespace WebProdavnica.API.Controllers
                     .Where(j => j.CraftsmanId == craftsmanId)
                     .ToList();
 
+                var data = jobOrders.Select(j => new
+                {
+                    j.JobId,
+                    j.ScheduledDate,
+                    j.JobDescription,
+                    j.Status,
+                    j.TotalPrice,
+                    j.UserId,
+                    j.CraftsmanId,
+                    j.HourlyRate,
+                    j.EstimatedHours,
+                    j.EstimatedMinutes,
+                    j.StartedAt,
+                    j.EndedAt,
+                    j.ActualSeconds,
+                    j.JobRequestId,
+                    title = j.JobRequestId.HasValue
+                        ? _jobRequestService.Get(j.JobRequestId.Value)?.Title
+                        : null,
+                    rating = _reviewService.GetReviewByJobId(j.JobId)?.Rating,
+                }).ToList();
+
                 return Ok(new
                 {
                     success = true,
                     craftsmanId = craftsmanId,
-                    data = jobOrders,
-                    count = jobOrders.Count
+                    data,
+                    count = data.Count
                 });
             }
             catch (Exception ex)
@@ -190,33 +234,6 @@ namespace WebProdavnica.API.Controllers
             }
         }
 
-        // GET: api/joborders/urgent
-        [HttpGet("urgent")]
-        public IActionResult GetUrgent()
-        {
-            try
-            {
-                var urgentOrders = _jobOrderService.GetAll()
-                    .Where(j => j.Urgent == true)
-                    .OrderBy(j => j.ScheduledDate)
-                    .ToList();
-
-                return Ok(new
-                {
-                    success = true,
-                    data = urgentOrders,
-                    count = urgentOrders.Count
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    success = false,
-                    error = ex.Message
-                });
-            }
-        }
 
         // PUT: api/joborders/5
         [HttpPut("{id}")]
@@ -333,8 +350,9 @@ namespace WebProdavnica.API.Controllers
         public IActionResult Start(int id)
         {
             var job = _jobOrderService.Get(id);
-            if (job != null && job.ScheduledDate.Date != DateTime.UtcNow.Date)
-                return BadRequest(new { success = false, message = $"Timer se može pokrenuti samo na zakazani dan ({job.ScheduledDate:dd.MM.yyyy})." });
+            // TESTING: uklonjen datum check
+            // if (job != null && job.ScheduledDate.Date != DateTime.UtcNow.Date)
+            //     return BadRequest(new { success = false, message = $"Timer se može pokrenuti samo na zakazani dan ({job.ScheduledDate:dd.MM.yyyy})." });
 
             var ok = _jobOrderService.StartTimer(id);
             return ok ? Ok(new { success = true }) : BadRequest(new { success = false, message = "Timer nije mogao biti pokrenut." });

@@ -3,10 +3,11 @@ import { MessageCircle, Search, CheckCircle, Clock, AlertCircle, ChevronRight, C
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import UserProfile from "../components/UserProfile";
+// import UserProfile from "../components/UserProfile";
 import ServicesTable from "../components/ServicesTable";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import ReviewForm from "../components/ReviewForm";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5114";
 const AUTO_CONFIRM_SECONDS = 30 * 60; // 30 minutes
@@ -99,6 +100,7 @@ export default function UserDashboard() {
   const [error, setError] = useState('');
   const [capturingId, setCapturingId] = useState(null);
   const [requestActionId, setRequestActionId] = useState(null);
+  const [reviewJobId, setReviewJobId] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -200,6 +202,7 @@ export default function UserDashboard() {
       const data = await res.json();
       if (data.success) {
         await fetchJobs();
+        setReviewJobId(jobId);
       } else {
         alert('Greška pri potvrdi plaćanja. Pokušajte ponovo.');
       }
@@ -268,7 +271,7 @@ export default function UserDashboard() {
             </Link>
           </div>
 
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
+          {/* <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
             <UserProfile
               data={userData}
               onUpdate={handleProfileUpdate}
@@ -279,7 +282,7 @@ export default function UserDashboard() {
             <div className="mt-6 bg-red-500/20 border border-red-500 rounded-2xl p-4">
               <p className="text-red-400">{error}</p>
             </div>
-          )}
+          )} */}
 
           {/* Zahtevi za posao — pending i accepted */}
           {jobRequests.length > 0 && (
@@ -415,6 +418,19 @@ export default function UserDashboard() {
           </div>
         </div>
       </main>
+
+      {reviewJobId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <ReviewForm
+            jobOrderId={reviewJobId}
+            onReviewSubmitted={() => {
+              setReviewJobId(null);
+              alert('Hvala na oceni! Vaše mišljenje je važno.');
+            }}
+            onCancel={() => setReviewJobId(null)}
+          />
+        </div>
+      )}
 
       <Footer />
     </div>

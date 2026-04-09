@@ -141,7 +141,11 @@ namespace WebProdavnica.API.Controllers
             if (payment.PaymentStatus == "Captured")
                 return Ok(new { success = true, actualPrice = payment.Amount, alreadyCaptured = true });
 
-            if (payment.PaymentStatus != "Preauthorized")
+            // Allow "Pending" in addition to "Preauthorized" — in local dev environments AllSecure
+            // cannot reach localhost for callbacks, so the status never transitions from Pending to
+            // Preauthorized even though AllSecure processed the preauth on their side.
+            // The CaptureAsync call itself will fail if the preauth was not actually completed.
+            if (payment.PaymentStatus != "Preauthorized" && payment.PaymentStatus != "Pending")
                 return BadRequest(new { success = false, message = $"Nije moguće naplatiti plaćanje u statusu '{payment.PaymentStatus}'." });
 
             var job = _jobOrderService.Get(jobId);

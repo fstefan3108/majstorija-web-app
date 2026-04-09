@@ -22,25 +22,6 @@ const Section = ({ title, children, defaultOpen = true }) => {
   );
 };
 
-const CheckOption = ({ label, checked, onChange }) => (
-  <label className="flex items-center gap-3 py-1.5 cursor-pointer group">
-    <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-all
-      ${checked
-        ? 'bg-blue-600 border-blue-600'
-        : 'border-gray-500 group-hover:border-blue-400 bg-transparent'
-      }`}
-    >
-      {checked && (
-        <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
-          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </span>
-    <span className={`text-sm transition-colors ${checked ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
-      {label}
-    </span>
-  </label>
-);
 
 const StarSelector = ({ value, onChange }) => {
   const options = [0, 3, 3.5, 4, 4.5];
@@ -211,14 +192,6 @@ const CraftsmenFilter = ({ filters, onChange, onReset, hasActiveFilters }) => {
           )}
         </Section>
 
-        {/* DOSTUPNOST */}
-        <Section title="Dostupnost" defaultOpen={true}>
-          <CheckOption
-            label="Hitne intervencije (0-24h)"
-            checked={filters.urgentOnly}
-            onChange={() => onChange({ ...filters, urgentOnly: !filters.urgentOnly })}
-          />
-        </Section>
       </div>
     </div>
   );

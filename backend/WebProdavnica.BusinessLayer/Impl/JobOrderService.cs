@@ -46,11 +46,6 @@ namespace WebProdavnica.BusinessLayer.Impl
                 .Where(j => j.Status.ToLower() == status.ToLower())
                 .ToList();
 
-        public List<JobOrder> GetUrgent() =>
-            _jobOrderRepository.GetAll()
-                .Where(j => j.Urgent == true)
-                .OrderBy(j => j.ScheduledDate)
-                .ToList();
 
         public bool UpdateStatus(int jobId, string status)
         {

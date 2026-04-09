@@ -14,8 +14,6 @@ namespace WebProdavnica.Entities.DTOs
             ErrorMessage = "Status mora biti: Zakazano, U toku, Završeno ili Otkazano")]
         public string? Status { get; set; }
 
-        public bool Urgent { get; set; }
-
         [Range(0.00, 10000000, ErrorMessage = "Cena mora biti pozitivan broj")]
         public decimal TotalPrice { get; set; }
 

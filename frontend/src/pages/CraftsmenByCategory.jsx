@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Wrench, Zap, Hammer, Armchair, Wind, Droplets, PaintBucket, Tv, Car,
-  MapPin, Clock, Star, Briefcase, ArrowLeft, Phone, Mail, MessageSquare,
+  MapPin, Clock, Star, Briefcase, ArrowLeft, MessageSquare,
   AlertCircle, Loader2, X, User, Search, SlidersHorizontal
 } from 'lucide-react';
 import Header from "../components/Header";
@@ -117,23 +117,21 @@ const CraftsmanCard = ({ craftsman, onContact }) => {
         <div className="flex items-center gap-2 text-gray-300 text-sm"><MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" /><span className="truncate">{craftsman.location || 'Lokacija nije navedena'}</span></div>
         <div className="flex items-center gap-2 text-gray-300 text-sm"><Briefcase className="w-4 h-4 text-gray-500 flex-shrink-0" /><span>{craftsman.experience} god. iskustva</span></div>
         <div className="flex items-center gap-2 text-gray-300 text-sm"><Clock className="w-4 h-4 text-gray-500 flex-shrink-0" /><span>{craftsman.workingHours || 'Radno vreme nije navedeno'}</span></div>
-        <div className="flex items-center justify-between pt-2">
-          <div><span className="text-2xl font-bold text-white">{craftsman.hourlyRate}</span><span className="text-gray-400 text-sm ml-1">RSD/h</span></div>
-          {canContact && (
-            <button
-              onClick={() => onContact(craftsman)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/20"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Kontaktiraj
-            </button>
-          )}
+        <div className="pt-2">
+          <span className="text-2xl font-bold text-white">{craftsman.hourlyRate}</span><span className="text-gray-400 text-sm ml-1">RSD/h</span>
         </div>
       </div>
-      <div className="px-6 pb-5 flex gap-3">
-        <Link to={`/craftsman/${craftsman.craftsmanId}`} className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-all border border-gray-600"><User className="w-4 h-4" />Profil</Link>
-        <a href={`mailto:${craftsman.email}`} className="flex items-center justify-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors text-xs px-3 py-2 bg-gray-800 rounded-lg border border-gray-700"><Mail className="w-3.5 h-3.5" /></a>
-        <a href={`tel:${craftsman.phone}`} className="flex items-center justify-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors text-xs px-3 py-2 bg-gray-800 rounded-lg border border-gray-700"><Phone className="w-3.5 h-3.5" /></a>
+      <div className="px-6 pb-5 flex flex-col gap-2">
+        {canContact && (
+          <button
+            onClick={() => onContact(craftsman)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/20"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Kontaktiraj
+          </button>
+        )}
+        <Link to={`/craftsman/${craftsman.craftsmanId}`} className="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-all border border-gray-600"><User className="w-4 h-4" />Profil</Link>
       </div>
     </div>
   );
@@ -153,12 +151,12 @@ const CraftsmenByCategory = () => {
   const [selectedCraftsman, setSelectedCraftsman] = useState(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  const defaultFilters = { location: '', minPrice: '', maxPrice: '', minRating: 0, urgentOnly: false };
+  const defaultFilters = { location: '', minPrice: '', maxPrice: '', minRating: 0 };
   const [filters, setFilters] = useState(defaultFilters);
 
   const hasActiveFilters =
     filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' ||
-    filters.minRating !== 0 || filters.urgentOnly;
+    filters.minRating !== 0;
 
   useEffect(() => {
     if (!config) { navigate('/browse-tasks', { replace: true }); return; }
@@ -184,7 +182,6 @@ const CraftsmenByCategory = () => {
       if (filters.minPrice && c.hourlyRate < Number(filters.minPrice)) return false;
       if (filters.maxPrice && c.hourlyRate > Number(filters.maxPrice)) return false;
       if (filters.minRating && (c.averageRating ?? 0) < filters.minRating) return false;
-      if (filters.urgentOnly && !c.workingHours?.toLowerCase().includes('0-24')) return false;
       return true;
     })
     .sort((a, b) => {
@@ -231,7 +228,7 @@ const CraftsmenByCategory = () => {
         </div>
       )}
 
-      <div className="flex-1 px-4 sm:px-6 lg:px-8 py-10">
+      <div className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 pb-10">
         <div className="max-w-7xl mx-auto">
 
           <button onClick={() => navigate('/browse-tasks', { replace: true })} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 group">

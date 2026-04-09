@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, Clock, AlertTriangle, User, CheckCircle,
+  ArrowLeft, Calendar, Clock, User, CheckCircle,
   XCircle, Loader2, Image, ChevronLeft, ChevronRight, X
 } from 'lucide-react';
 import Header from '../components/Header';
@@ -282,11 +282,6 @@ export default function JobRequestPage() {
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" /> {scheduledFormatted}
               </span>
-              {request.urgent && (
-                <span className="flex items-center gap-1.5 text-red-400 font-medium">
-                  <AlertTriangle className="w-4 h-4" /> Hitno
-                </span>
-              )}
               <span className="flex items-center gap-1.5">
                 <User className="w-4 h-4" /> Zahtev #{request.requestId}
               </span>

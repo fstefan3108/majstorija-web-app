@@ -14,14 +14,13 @@ namespace WebProdavnica.DAL.Impl
             Description      = r.GetString(2),
             ScheduledDate    = r.GetDateTime(3),
             Status           = r.GetString(4),
-            Urgent           = r.GetBoolean(5),
-            UserId           = r.GetInt32(6),
-            CraftsmanId      = r.GetInt32(7),
-            EstimatedMinutes = r.IsDBNull(8)  ? null : r.GetInt32(8),
-            EstimatedPrice   = r.IsDBNull(9)  ? null : r.GetDecimal(9),
-            JobOrderId       = r.IsDBNull(10) ? null : r.GetInt32(10),
-            CreatedAt        = r.GetDateTime(11),
-            UpdatedAt        = r.GetDateTime(12),
+            UserId           = r.GetInt32(5),
+            CraftsmanId      = r.GetInt32(6),
+            EstimatedMinutes = r.IsDBNull(7)  ? null : r.GetInt32(7),
+            EstimatedPrice   = r.IsDBNull(8)  ? null : r.GetDecimal(8),
+            JobOrderId       = r.IsDBNull(9)  ? null : r.GetInt32(9),
+            CreatedAt        = r.GetDateTime(10),
+            UpdatedAt        = r.GetDateTime(11),
         };
 
         public int Add(JobRequest req)
@@ -31,13 +30,12 @@ namespace WebProdavnica.DAL.Impl
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 INSERT INTO dbo.job_requests
-                    (title, description, scheduled_date, status, urgent, user_id, craftsman_id)
+                    (title, description, scheduled_date, status, user_id, craftsman_id)
                 OUTPUT INSERTED.request_id
-                VALUES (@t, @d, @sd, 'pending', @u, @uid, @cid)";
+                VALUES (@t, @d, @sd, 'pending', @uid, @cid)";
             cmd.Parameters.AddWithValue("@t",   req.Title);
             cmd.Parameters.AddWithValue("@d",   req.Description);
             cmd.Parameters.AddWithValue("@sd",  req.ScheduledDate);
-            cmd.Parameters.AddWithValue("@u",   req.Urgent);
             cmd.Parameters.AddWithValue("@uid", req.UserId);
             cmd.Parameters.AddWithValue("@cid", req.CraftsmanId);
             var id = cmd.ExecuteScalar();
@@ -50,7 +48,7 @@ namespace WebProdavnica.DAL.Impl
             conn.Open();
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                SELECT request_id, title, description, scheduled_date, status, urgent,
+                SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
                        job_order_id, created_at, updated_at
                 FROM dbo.job_requests WHERE request_id = @id";
@@ -69,7 +67,7 @@ namespace WebProdavnica.DAL.Impl
             conn.Open();
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                SELECT request_id, title, description, scheduled_date, status, urgent,
+                SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
                        job_order_id, created_at, updated_at
                 FROM dbo.job_requests
@@ -91,7 +89,7 @@ namespace WebProdavnica.DAL.Impl
             conn.Open();
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                SELECT request_id, title, description, scheduled_date, status, urgent,
+                SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
                        job_order_id, created_at, updated_at
                 FROM dbo.job_requests

@@ -166,7 +166,6 @@ namespace WebProdavnica.BusinessLayer.Impl
                 ScheduledDate    = req.ScheduledDate,
                 JobDescription   = req.Description,
                 Status           = "zakazano",
-                Urgent           = req.Urgent,
                 TotalPrice       = req.EstimatedPrice.Value,
                 HourlyRate       = craftsman.HourlyRate,
                 EstimatedHours   = req.EstimatedMinutes.Value / 60,

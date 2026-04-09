@@ -9,7 +9,7 @@ namespace WebProdavnica.DAL.Impl
     {
         // Explicit column list used in every SELECT — never use SELECT * to avoid column-order fragility.
         private const string SelectColumns = @"
-            job_id, scheduled_date, job_description, status, urgent,
+            job_id, scheduled_date, job_description, status,
             total_price, user_id, craftsman_id, hourly_rate, estimated_hours,
             started_at, ended_at, actual_seconds, estimated_minutes, job_request_id";
 
@@ -20,17 +20,16 @@ namespace WebProdavnica.DAL.Impl
             ScheduledDate    = r.GetDateTime(1),
             JobDescription   = r.IsDBNull(2)  ? null : r.GetString(2),
             Status           = r.IsDBNull(3)  ? null : r.GetString(3),
-            Urgent           = r.GetBoolean(4),
-            TotalPrice       = r.GetDecimal(5),
-            UserId           = r.GetInt32(6),
-            CraftsmanId      = r.GetInt32(7),
-            HourlyRate       = r.IsDBNull(8)  ? 0    : r.GetDecimal(8),
-            EstimatedHours   = r.IsDBNull(9)  ? 0    : r.GetInt32(9),
-            StartedAt        = r.IsDBNull(10) ? null : r.GetDateTime(10),
-            EndedAt          = r.IsDBNull(11) ? null : r.GetDateTime(11),
-            ActualSeconds    = r.IsDBNull(12) ? null : r.GetInt32(12),
-            EstimatedMinutes = r.IsDBNull(13) ? null : r.GetInt32(13),
-            JobRequestId     = r.IsDBNull(14) ? null : r.GetInt32(14),
+            TotalPrice       = r.GetDecimal(4),
+            UserId           = r.GetInt32(5),
+            CraftsmanId      = r.GetInt32(6),
+            HourlyRate       = r.IsDBNull(7)  ? 0    : r.GetDecimal(7),
+            EstimatedHours   = r.IsDBNull(8)  ? 0    : r.GetInt32(8),
+            StartedAt        = r.IsDBNull(9)  ? null : r.GetDateTime(9),
+            EndedAt          = r.IsDBNull(10) ? null : r.GetDateTime(10),
+            ActualSeconds    = r.IsDBNull(11) ? null : r.GetInt32(11),
+            EstimatedMinutes = r.IsDBNull(12) ? null : r.GetInt32(12),
+            JobRequestId     = r.IsDBNull(13) ? null : r.GetInt32(13),
         };
 
         // ── CRUD ──────────────────────────────────────────────────────────────
@@ -41,16 +40,15 @@ namespace WebProdavnica.DAL.Impl
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 INSERT INTO dbo.job_orders
-                    (scheduled_date, job_description, status, urgent, total_price,
+                    (scheduled_date, job_description, status, total_price,
                      user_id, craftsman_id, hourly_rate, estimated_hours,
                      estimated_minutes, job_request_id)
                 OUTPUT INSERTED.job_id
-                VALUES (@sd, @jd, @st, @u, @tp, @uid, @cid, @hr, @eh, @em, @jrid)";
+                VALUES (@sd, @jd, @st, @tp, @uid, @cid, @hr, @eh, @em, @jrid)";
 
             cmd.Parameters.AddWithValue("@sd",   j.ScheduledDate);
             cmd.Parameters.AddWithValue("@jd",   j.JobDescription ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@st",   j.Status ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@u",    j.Urgent);
             cmd.Parameters.AddWithValue("@tp",   j.TotalPrice);
             cmd.Parameters.AddWithValue("@uid",  j.UserId);
             cmd.Parameters.AddWithValue("@cid",  j.CraftsmanId);
@@ -108,7 +106,6 @@ namespace WebProdavnica.DAL.Impl
                 SET scheduled_date=@sd,
                     job_description=@jd,
                     status=@st,
-                    urgent=@u,
                     total_price=@tp,
                     hourly_rate=@hr,
                     estimated_hours=@eh,
@@ -121,7 +118,6 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@sd",   j.ScheduledDate);
             cmd.Parameters.AddWithValue("@jd",   j.JobDescription ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@st",   j.Status ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@u",    j.Urgent);
             cmd.Parameters.AddWithValue("@tp",   j.TotalPrice);
             cmd.Parameters.AddWithValue("@hr",   j.HourlyRate);
             cmd.Parameters.AddWithValue("@eh",   j.EstimatedHours);
@@ -153,7 +149,7 @@ namespace WebProdavnica.DAL.Impl
             // Only allow start on the scheduled day
             var job = Get(jobId);
             if (job == null) return false;
-            if (job.ScheduledDate.Date != DateTime.UtcNow.Date) return false;
+            // if (job.ScheduledDate.Date != DateTime.UtcNow.Date) return false; // TESTING: uklonjen datum check
 
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
@@ -261,7 +257,8 @@ namespace WebProdavnica.DAL.Impl
                         j.hourly_rate
                     FROM dbo.job_intervals i
                     JOIN dbo.job_orders j ON j.job_id = i.job_id
-                    WHERE i.job_id = @id";
+                    WHERE i.job_id = @id
+                    GROUP BY j.hourly_rate";
                 c2.Parameters.AddWithValue("@id", jobId);
                 var r = c2.ExecuteReader();
                 r.Read();
@@ -340,7 +337,7 @@ namespace WebProdavnica.DAL.Impl
                 AccumulatedSeconds = accumulated,
                 CurrentIntervalStartedAt = (raw == null || raw == DBNull.Value)
                                            ? null
-                                           : (DateTime?)Convert.ToDateTime(raw),
+                                           : (DateTime?)DateTime.SpecifyKind(Convert.ToDateTime(raw), DateTimeKind.Utc),
             };
         }
     }

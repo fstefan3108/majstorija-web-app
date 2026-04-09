@@ -1,4 +1,4 @@
-import { Plus, Trash2, AlertCircle, Play, Eye } from "lucide-react";
+import { Plus, Play, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const STATUS_STYLES = {
@@ -13,7 +13,6 @@ const STATUS_STYLES = {
 export default function ServicesTable({
   services,
   onAddService,
-  onDelete,
   buttonText = "Dodaj Novi Posao",
   buttonIcon = <Plus className="w-5 h-5" />,
   isWorker = false,
@@ -92,16 +91,12 @@ export default function ServicesTable({
               <tr className="border-b border-gray-700">
                 <th className="text-left text-gray-300 font-semibold py-3 px-4">ID</th>
                 <th className="text-left text-gray-300 font-semibold py-3 px-4">Datum</th>
-                <th className="text-left text-gray-300 font-semibold py-3 px-4">Opis</th>
+                <th className="text-left text-gray-300 font-semibold py-3 px-4">Naziv posla</th>
                 <th className="text-left text-gray-300 font-semibold py-3 px-4">Status</th>
-                <th className="text-left text-gray-300 font-semibold py-3 px-4">Hitno</th>
                 <th className="text-right text-gray-300 font-semibold py-3 px-4">Cena</th>
                 <th className="text-center text-gray-300 font-semibold py-3 px-4">
                   {isWorker ? 'Timer' : 'Pregled'}
                 </th>
-                {onDelete && (
-                  <th className="text-center text-gray-300 font-semibold py-3 px-4">Obriši</th>
-                )}
               </tr>
             </thead>
             <tbody>
@@ -116,22 +111,13 @@ export default function ServicesTable({
                   <td className="py-4 px-4">
                     <span className="text-gray-300">{formatDate(service.scheduledDate)}</span>
                   </td>
-                  <td className="py-4 px-4 max-w-[200px]">
-                    <span className="text-white">{service.jobDescription || 'Bez opisa'}</span>
+                  <td className="py-4 px-4 max-w-[180px]">
+                    <span className="text-white block truncate">{service.title || service.jobDescription || 'Bez naziva'}</span>
                   </td>
                   <td className="py-4 px-4">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${STATUS_STYLES[service.status] || "bg-gray-700/30 text-gray-300 border-gray-600"}`}>
                       {service.status}
                     </span>
-                  </td>
-                  <td className="py-4 px-4">
-                    {service.urgent ? (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-600 text-white text-sm">
-                        <AlertCircle className="w-4 h-4" /> Da
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">Ne</span>
-                    )}
                   </td>
                   <td className="py-4 px-4 text-right">
                     <span className="text-white font-semibold">{service.totalPrice.toLocaleString()} RSD</span>
@@ -139,17 +125,6 @@ export default function ServicesTable({
                   <td className="py-4 px-4 text-center">
                     {timerLink(service)}
                   </td>
-                  {onDelete && (
-                    <td className="py-4 px-4 text-center">
-                      <button
-                        onClick={() => onDelete(service.jobId)}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition"
-                        title="Obriši posao"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  )}
                 </tr>
               ))}
             </tbody>

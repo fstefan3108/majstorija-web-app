@@ -1,13 +1,24 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
+import {
   Wrench, Zap, Hammer, Armchair, Wind, Droplets, PaintBucket, Tv, Car
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5114';
+
 const BrowseTasks = () => {
-  const { user } = useAuth(); // ← UNUTAR komponente
+  const { user } = useAuth();
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/stats`)
+      .then(r => r.json())
+      .then(data => { if (data.success) setStats(data); })
+      .catch(() => {});
+  }, []);
 
   const categories = [
     {
@@ -107,7 +118,7 @@ const BrowseTasks = () => {
             <div className="flex flex-wrap justify-center gap-4">
               <Link to={hireLink}
                 className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold px-8 py-3 rounded-lg transition-all transform hover:scale-105 shadow-lg">
-                Angažujte Radnika
+                Postanite Klijent
               </Link>
               <Link to={workerLink}
                 className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-8 py-3 rounded-lg transition-all transform hover:scale-105">
@@ -143,15 +154,21 @@ const BrowseTasks = () => {
           <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 backdrop-blur-sm rounded-2xl p-12 border border-blue-500/30">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
               <div>
-                <div className="text-5xl font-bold text-white mb-2">1M+</div>
+                <div className="text-5xl font-bold text-white mb-2">
+                  {stats ? stats.totalUsers : '—'}
+                </div>
                 <div className="text-gray-300 text-lg">Korisnici</div>
               </div>
               <div>
-                <div className="text-5xl font-bold text-white mb-2">2.5M+</div>
+                <div className="text-5xl font-bold text-white mb-2">
+                  {stats ? stats.completedJobs : '—'}
+                </div>
                 <div className="text-gray-300 text-lg">Završenih Poslova</div>
               </div>
               <div>
-                <div className="text-5xl font-bold text-white mb-2">140+</div>
+                <div className="text-5xl font-bold text-white mb-2">
+                  {stats ? stats.reviews : '—'}
+                </div>
                 <div className="text-gray-300 text-lg">Recenzije Korisnika</div>
               </div>
             </div>
