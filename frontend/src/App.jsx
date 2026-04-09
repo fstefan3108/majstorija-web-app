@@ -15,6 +15,7 @@ import CraftsmanProfile from './pages/CraftsmanProfile';
 import Dashboard from './pages/Dashboard';
 import JobTimer from './pages/JobTimer';
 import JobRequestPage from './pages/JobRequestPage';
+import FAQ from './pages/FAQ';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
         <Route path="/craftsman/:id" element={<CraftsmanProfile />} />
         <Route path="/job-timer/:jobId" element={<JobTimer />} />
         <Route path="/job-request/:id" element={<JobRequestPage />} />
+        <Route path="/faq" element={<FAQ />} />
       </Routes>
     </BrowserRouter>
   );

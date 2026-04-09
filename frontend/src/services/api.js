@@ -231,6 +231,12 @@ async updateUser(id, userData) {
       method: 'PATCH',
     });
   }
+  
+  async deleteNotification(notificationId) {
+  return this.request(`/notifications/${notificationId}`, {
+    method: 'DELETE',
+  });
+}
 }
 
 export default new ApiService();

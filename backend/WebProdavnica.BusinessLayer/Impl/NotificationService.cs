@@ -47,6 +47,8 @@ namespace WebProdavnica.BusinessLayer.Impl
 
         public bool MarkAllRead(int recipientId, string recipientType)
             => _repo.MarkAllRead(recipientId, recipientType);
+        public bool Delete(int notificationId)
+            => _repo.Delete(notificationId);
 
         // ── Private ────────────────────────────────────────────────────────────
 
@@ -77,5 +79,7 @@ namespace WebProdavnica.BusinessLayer.Impl
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
         }
+
+
     }
 }

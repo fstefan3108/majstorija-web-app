@@ -163,6 +163,21 @@ namespace WebProdavnica.API.Controllers
             job.Status = "Završeno";
             _jobOrderService.Update(job);
 
+            var craftsman = _craftsmanService.Get(job.CraftsmanId);
+            if (craftsman != null)
+            {
+                var dateStr = job.ScheduledDate.ToString("dd.MM.yyyy");
+                await _notificationService.SendAsync(new Notification
+                {
+                    RecipientId = job.CraftsmanId,
+                    RecipientType = "craftsman",
+                    Type = "payment_captured",
+                    Title = "Uplata potvrđena",
+                    Message = $"Korisnik je potvrdio završetak posla i uplata je realizovana. Posao \"{job.JobDescription}\" od {dateStr}.",
+                    RelatedEntityId = jobId,
+                }, craftsman.Email ?? "");
+            }
+
             return Ok(new { success = true, actualPrice = job.TotalPrice });
         }
 

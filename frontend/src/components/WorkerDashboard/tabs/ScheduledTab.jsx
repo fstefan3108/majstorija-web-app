@@ -29,10 +29,12 @@ export default function ScheduledTab({ services, onDelete, isLoading }) {
   }
 
   return (
-    <ServicesTable
-      services={scheduled}
-      onDelete={onDelete}
-      isWorker={true}
-    />
+    <div className="overflow-x-auto overflow-y-scroll max-h-[520px]">
+      <ServicesTable
+        services={scheduled}
+        onDelete={onDelete}
+        isWorker={true}
+      />
+    </div>
   );
 }

@@ -97,5 +97,15 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@rt",  recipientType);
             return cmd.ExecuteNonQuery() > 0;
         }
+
+        public bool Delete(int notificationId)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM dbo.notifications WHERE notification_id = @id";
+            cmd.Parameters.AddWithValue("@id", notificationId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
     }
 }

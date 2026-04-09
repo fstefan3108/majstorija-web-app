@@ -14,7 +14,6 @@ export default function Navbar() {
   const isLoggedIn = !!user;
   const isCraftsman = user?.role === 'Craftsman';
 
-  // Inicijali iz AuthContext
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : '?';
@@ -44,59 +43,58 @@ export default function Navbar() {
         <Link to="/" className="text-gray-300 hover:text-white font-medium transition-colors">Početna</Link>
         <Link to="/about" className="text-gray-300 hover:text-white font-medium transition-colors">O Nama</Link>
         <Link to="/dashboard" className="text-gray-300 hover:text-white font-medium transition-colors">Pregled</Link>
+        <Link to="/faq" onClick={() => window.scrollTo(0, 0)}  className="text-gray-300 hover:text-white font-medium transition-colors">FAQ</Link>
         <Link to="/contact" className="text-gray-300 hover:text-white font-medium transition-colors">Kontakt</Link>
 
         {isLoggedIn ? (
           <div className="flex items-center gap-2">
-          <NotificationBell />
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-full pl-1 pr-3 py-1 transition"
-            >
-              {/* Inicijali umesto upitnika */}
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold">
-                {initials}
-              </div>
-              <span className="text-white text-sm font-medium max-w-[120px] truncate">{user.name}</span>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-700">
-                  <p className="text-white font-semibold text-sm truncate">{user.name}</p>
-                  <p className="text-gray-400 text-xs truncate">{user.email}</p>
-                  <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-400 font-medium">
-                    {isCraftsman ? 'Majstor' : 'Korisnik'}
-                  </span>
+            <NotificationBell />
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-full pl-1 pr-3 py-1 transition"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold">
+                  {initials}
                 </div>
+                <span className="text-white text-sm font-medium max-w-[120px] truncate">{user.name}</span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-                <div className="py-1">
-                  <Link to="/chat" onClick={() => setIsDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
-                    <MessageSquare className="w-4 h-4" /> Poruke
-                  </Link>
-                  <Link to="/dashboard" onClick={() => setIsDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
-                    <ClipboardList className="w-4 h-4" /> Pregled
-                  </Link>
-                  <Link to="/profile/settings" onClick={() => setIsDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
-                    <Settings className="w-4 h-4" /> Podešavanja naloga
-                  </Link>
-                  
-                </div>
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-700">
+                    <p className="text-white font-semibold text-sm truncate">{user.name}</p>
+                    <p className="text-gray-400 text-xs truncate">{user.email}</p>
+                    <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-400 font-medium">
+                      {isCraftsman ? 'Majstor' : 'Korisnik'}
+                    </span>
+                  </div>
 
-                <div className="border-t border-gray-700 py-1">
-                  <button onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-red-400 hover:text-red-300 hover:bg-gray-700 transition text-sm">
-                    <LogOut className="w-4 h-4" /> Odjavi se
-                  </button>
+                  <div className="py-1">
+                    <Link to="/chat" onClick={() => setIsDropdownOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
+                      <MessageSquare className="w-4 h-4" /> Poruke
+                    </Link>
+                    <Link to="/dashboard" onClick={() => setIsDropdownOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
+                      <ClipboardList className="w-4 h-4" /> Pregled
+                    </Link>
+                    <Link to="/profile/settings" onClick={() => setIsDropdownOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
+                      <Settings className="w-4 h-4" /> Podešavanja naloga
+                    </Link>
+                  </div>
+
+                  <div className="border-t border-gray-700 py-1">
+                    <button onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-red-400 hover:text-red-300 hover:bg-gray-700 transition text-sm">
+                      <LogOut className="w-4 h-4" /> Odjavi se
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
           </div>
         ) : (
           <>
@@ -125,6 +123,7 @@ export default function Navbar() {
           <Link to="/" onClick={toggleMenu} className="text-white hover:text-blue-400 font-medium text-lg transition-colors py-2 px-4 rounded-lg hover:bg-gray-800/50">Početna</Link>
           <Link to="/about" onClick={toggleMenu} className="text-white hover:text-blue-400 font-medium text-lg transition-colors py-2 px-4 rounded-lg hover:bg-gray-800/50">O Nama</Link>
           <Link to="/dashboard" onClick={toggleMenu} className="text-white hover:text-blue-400 font-medium text-lg transition-colors py-2 px-4 rounded-lg hover:bg-gray-800/50">Pregled</Link>
+          <Link to="/faq" onClick={toggleMenu} className="text-white hover:text-blue-400 font-medium text-lg transition-colors py-2 px-4 rounded-lg hover:bg-gray-800/50">FAQ</Link>
           <Link to="/contact" onClick={toggleMenu} className="text-white hover:text-blue-400 font-medium text-lg transition-colors py-2 px-4 rounded-lg hover:bg-gray-800/50">Kontakt</Link>
 
           <div className="pt-4 border-t border-gray-700">

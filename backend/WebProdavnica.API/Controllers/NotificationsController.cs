@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using WebProdavnica.BusinessLayer.Abstract;
+using WebProdavnica.BusinessLayer.Impl;
 
 namespace WebProdavnica.API.Controllers
 {
@@ -49,6 +50,17 @@ namespace WebProdavnica.API.Controllers
         {
             _service.MarkAllRead(recipientId, recipientType);
             return Ok(new { success = true });
+        }
+
+        // DELETE /api/notifications/{id}
+        [HttpDelete("{id}")]
+        public IActionResult Delete(int id)
+        {
+            // pretpostavljamo da INotificationRepository ima Delete(int id)
+            bool ok = _service.Delete(id);
+            return ok
+                ? Ok(new { success = true })
+                : NotFound(new { success = false });
         }
     }
 }

@@ -9,5 +9,6 @@ namespace WebProdavnica.DAL.Abstract
         int GetUnreadCount(int recipientId, string recipientType);
         bool MarkRead(int notificationId);
         bool MarkAllRead(int recipientId, string recipientType);
+        bool Delete(int notificationId);
     }
 }
