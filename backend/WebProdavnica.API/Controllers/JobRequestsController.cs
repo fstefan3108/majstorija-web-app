@@ -63,7 +63,6 @@ namespace WebProdavnica.API.Controllers
                 Title         = dto.Title,
                 Description   = dto.Description,
                 ScheduledDate = dto.ScheduledDate,
-                Urgent        = dto.Urgent,
                 UserId        = dto.UserId,
                 CraftsmanId   = dto.CraftsmanId,
             };
@@ -223,7 +222,6 @@ namespace WebProdavnica.API.Controllers
             description      = r.Description,
             scheduledDate    = r.ScheduledDate,
             status           = r.Status,
-            urgent           = r.Urgent,
             userId           = r.UserId,
             craftsmanId      = r.CraftsmanId,
             estimatedMinutes = r.EstimatedMinutes,

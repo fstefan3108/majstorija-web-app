@@ -1,4 +1,4 @@
-import { Calendar, AlertTriangle, Star, History, Loader2 } from "lucide-react";
+import { Calendar, Star, History, Loader2 } from "lucide-react";
 
 export default function HistoryTab({ services, isLoading }) {
   const finished = services.filter((s) => {
@@ -48,11 +48,6 @@ export default function HistoryTab({ services, isLoading }) {
               >
                 {job.status}
               </span>
-              {job.urgent && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-xs">
-                  <AlertTriangle className="w-3 h-3" /> Hitno
-                </span>
-              )}
             </div>
 
             <p className="text-gray-500 text-xs flex items-center gap-1">

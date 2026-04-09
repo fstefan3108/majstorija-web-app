@@ -5,7 +5,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const API_BASE = 'http://localhost:5114';
-const MAX_OVERTIME_SECONDS = 2 * 3600; // 2h max extension
+const MAX_OVERTIME_SECONDS = 30 * 60; // 30min max extension
 
 const formatTime = (totalSeconds) => {
   const abs = Math.abs(totalSeconds);
@@ -214,7 +214,7 @@ const timerRef = useRef(null);
             {isNearLimit && (
               <div className="mt-4 flex items-center justify-center gap-2 text-red-400 text-sm font-medium">
                 <AlertTriangle className="w-4 h-4" />
-                Blizu maksimalnog prekoračenja od 2h!
+                Blizu maksimalnog prekoračenja od 30min!
               </div>
             )}
           </div>

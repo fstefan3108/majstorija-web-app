@@ -27,7 +27,7 @@ export default function Summary() {
 
         {/* Drugi blok — svetliji #0F172A */}
         <div className="p-5 md:flex ">
-          <div className="p-5 md:flex-1 md:flex md:flex-col md:justify-center md:items-center">
+          <div className="p-5 md:flex-1 md:flex md:flex-col md:justify-center">
             <Text type="subHeading" value="Organizuj svoje projekte bez stresa" />
             <Text type="primary" value="Planiraj termine, beleži radne zadatke i prati napredak svojih projekata, kako bi sve išlo glatko i bez stresa." />
             <div className="w-full mt-8">

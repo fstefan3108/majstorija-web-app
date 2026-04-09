@@ -12,7 +12,6 @@ namespace WebProdavnica.Entities
         public DateTime ScheduledDate { get; set; }
         public string? JobDescription { get; set; }
         public string? Status { get; set; }
-        public bool Urgent { get; set; }
         public decimal TotalPrice { get; set; }
         public decimal HourlyRate { get; set; }     
         public int EstimatedHours { get; set; }

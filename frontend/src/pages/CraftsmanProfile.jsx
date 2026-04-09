@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Clock, Star, Briefcase, Mail, Phone, DollarSign,
-  Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, AlertTriangle, MessageSquare
+  Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, MessageSquare
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -277,12 +277,6 @@ const CraftsmanProfile = () => {
                             {getStatusIcon(job.status)}
                             {job.status}
                           </span>
-                          {job.urgent && (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-600 text-white text-sm font-medium">
-                              <AlertTriangle className="w-4 h-4" />
-                              Hitno
-                            </span>
-                          )}
                         </div>
                         
                         <p className="text-white font-medium mb-2">{job.jobDescription || 'Opis nedostupan'}</p>
@@ -370,7 +364,7 @@ const CraftsmanProfile = () => {
           </div>
 
           {/* Reviews Section */}
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6">
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 mt-6">
             <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
               <Star className="w-6 h-6 text-yellow-400" />
               Recenzije

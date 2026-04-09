@@ -473,97 +473,6 @@ namespace WebProdavnica.UnitTest.Services
 
         #endregion
 
-        #region GetUrgent Tests
-
-        [Fact]
-        public void GetUrgent_ReturnsOnlyUrgentJobs()
-        {
-            // Arrange
-            var allJobs = new List<JobOrder>
-            {
-                new JobOrder { JobId = 1, Urgent = true, ScheduledDate = DateTime.Now.AddDays(1) },
-                new JobOrder { JobId = 2, Urgent = false, ScheduledDate = DateTime.Now.AddDays(2) },
-                new JobOrder { JobId = 3, Urgent = true, ScheduledDate = DateTime.Now.AddDays(3) },
-                new JobOrder { JobId = 4, Urgent = false, ScheduledDate = DateTime.Now.AddDays(4) }
-            };
-
-            _mockJobOrderRepo.Setup(r => r.GetAll()).Returns(allJobs);
-
-            // Act
-            var result = _jobOrderService.GetUrgent();
-
-            // Assert
-            Assert.Equal(2, result.Count);
-            Assert.All(result, job => Assert.True(job.Urgent));
-        }
-
-        [Fact]
-        public void GetUrgent_OrdersByScheduledDateAscending()
-        {
-            // Arrange
-            var baseDate = new DateTime(2024, 1, 1);
-            var allJobs = new List<JobOrder>
-            {
-                new JobOrder { JobId = 1, Urgent = true, ScheduledDate = baseDate.AddDays(5) },
-                new JobOrder { JobId = 2, Urgent = true, ScheduledDate = baseDate.AddDays(1) },
-                new JobOrder { JobId = 3, Urgent = true, ScheduledDate = baseDate.AddDays(3) }
-            };
-
-            _mockJobOrderRepo.Setup(r => r.GetAll()).Returns(allJobs);
-
-            // Act
-            var result = _jobOrderService.GetUrgent();
-
-            // Assert
-            Assert.Equal(3, result.Count);
-            Assert.Equal(baseDate.AddDays(1), result[0].ScheduledDate); // Soonest first
-            Assert.Equal(baseDate.AddDays(3), result[1].ScheduledDate);
-            Assert.Equal(baseDate.AddDays(5), result[2].ScheduledDate); // Latest last
-        }
-
-        [Fact]
-        public void GetUrgent_WithNoUrgentJobs_ReturnsEmptyList()
-        {
-            // Arrange
-            var allJobs = new List<JobOrder>
-            {
-                new JobOrder { JobId = 1, Urgent = false },
-                new JobOrder { JobId = 2, Urgent = false }
-            };
-
-            _mockJobOrderRepo.Setup(r => r.GetAll()).Returns(allJobs);
-
-            // Act
-            var result = _jobOrderService.GetUrgent();
-
-            // Assert
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public void GetUrgent_PrioritizesSoonerDates()
-        {
-            // Arrange
-            var today = DateTime.Now;
-            var allJobs = new List<JobOrder>
-            {
-                new JobOrder { JobId = 1, Urgent = true, ScheduledDate = today.AddDays(10) },
-                new JobOrder { JobId = 2, Urgent = true, ScheduledDate = today.AddHours(2) },  // Most urgent
-                new JobOrder { JobId = 3, Urgent = true, ScheduledDate = today.AddDays(1) }
-            };
-
-            _mockJobOrderRepo.Setup(r => r.GetAll()).Returns(allJobs);
-
-            // Act
-            var result = _jobOrderService.GetUrgent();
-
-            // Assert
-            Assert.Equal(2, result[0].JobId); // Job in 2 hours should be first
-            Assert.Equal(3, result[1].JobId); // Job tomorrow should be second
-            Assert.Equal(1, result[2].JobId); // Job in 10 days should be last
-        }
-
-        #endregion
 
         #region UpdateStatus Tests
 
@@ -652,7 +561,6 @@ namespace WebProdavnica.UnitTest.Services
                 Status = "Zakazano",
                 JobDescription = "Original Description",
                 TotalPrice = 5000,
-                Urgent = true,
                 UserId = 10,
                 CraftsmanId = 5
             };
@@ -667,7 +575,6 @@ namespace WebProdavnica.UnitTest.Services
             Assert.Equal("U toku", originalJob.Status); // Changed
             Assert.Equal("Original Description", originalJob.JobDescription); // Unchanged
             Assert.Equal(5000, originalJob.TotalPrice); // Unchanged
-            Assert.True(originalJob.Urgent); // Unchanged
             Assert.Equal(10, originalJob.UserId); // Unchanged
             Assert.Equal(5, originalJob.CraftsmanId); // Unchanged
         }
@@ -710,19 +617,6 @@ namespace WebProdavnica.UnitTest.Services
 
             // Act
             var result = _jobOrderService.GetByStatus("Zakazano");
-
-            // Assert
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public void GetUrgent_WithEmptyDatabase_ReturnsEmptyList()
-        {
-            // Arrange
-            _mockJobOrderRepo.Setup(r => r.GetAll()).Returns(new List<JobOrder>());
-
-            // Act
-            var result = _jobOrderService.GetUrgent();
 
             // Assert
             Assert.Empty(result);

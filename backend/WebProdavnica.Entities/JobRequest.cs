@@ -7,7 +7,6 @@ namespace WebProdavnica.Entities
         public string Description { get; set; } = string.Empty;
         public DateTime ScheduledDate { get; set; }
         public string Status { get; set; } = "pending";
-        public bool Urgent { get; set; }
 
         public int UserId { get; set; }
         public int CraftsmanId { get; set; }

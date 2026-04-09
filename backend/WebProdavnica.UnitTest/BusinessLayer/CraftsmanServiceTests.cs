@@ -1,6 +1,7 @@
 ﻿using Xunit;
 using Moq;
 using WebProdavnica.BusinessLayer.Impl;
+using WebProdavnica.BusinessLayer.Abstract;
 using WebProdavnica.DAL.Abstract;
 using WebProdavnica.Entities;
 
@@ -9,12 +10,14 @@ namespace WebProdavnica.UnitTest.Services
     public class CraftsmanServiceTests
     {
         private readonly Mock<ICraftsmanRepository> _mockCraftsmanRepo;
+        private readonly Mock<IReviewService> _mockReviewService;
         private readonly CraftsmanService _craftsmanService;
 
         public CraftsmanServiceTests()
         {
             _mockCraftsmanRepo = new Mock<ICraftsmanRepository>();
-            _craftsmanService = new CraftsmanService(_mockCraftsmanRepo.Object);
+            _mockReviewService = new Mock<IReviewService>();
+            _craftsmanService = new CraftsmanService(_mockCraftsmanRepo.Object, _mockReviewService.Object);
         }
 
         #region Add Tests

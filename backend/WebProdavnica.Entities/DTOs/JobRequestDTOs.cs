@@ -16,8 +16,6 @@ namespace WebProdavnica.Entities.DTOs
         [Required]
         public DateTime ScheduledDate { get; set; }
 
-        public bool Urgent { get; set; }
-
         [Required]
         [Range(1, int.MaxValue)]
         public int UserId { get; set; }

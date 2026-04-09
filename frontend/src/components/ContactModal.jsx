@@ -10,7 +10,6 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
-  const [urgent, setUrgent] = useState(false);
   const [images, setImages] = useState([]); // { file, previewUrl }
   const [imageError, setImageError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +70,6 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
         title: title.trim(),
         description: description.trim(),
         scheduledDate: new Date(scheduledDate).toISOString(),
-        urgent,
         userId: user.id,
         craftsmanId: craftsman.craftsmanId,
       });
@@ -86,7 +84,7 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
       }
 
       setSubmitted(true);
-      setTimeout(() => onSuccess?.(), 2000);
+      setTimeout(() => onSuccess?.(), 3000);
     } catch (err) {
       setError(err.message || 'Desila se greška. Pokušajte ponovo.');
     } finally {
@@ -173,19 +171,6 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
               className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition text-sm [color-scheme:dark]"
             />
           </div>
-
-          {/* Hitno */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={urgent}
-              onChange={(e) => setUrgent(e.target.checked)}
-              className="w-4 h-4 accent-red-500"
-            />
-            <span className="text-sm text-gray-300">
-              Hitno <span className="text-gray-500">(majstor će biti obavešten o hitnosti)</span>
-            </span>
-          </label>
 
           {/* Upload slika */}
           <div>

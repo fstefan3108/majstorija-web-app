@@ -3,7 +3,7 @@ import { MessageCircle, Search, CheckCircle, Clock, AlertCircle, ChevronRight, C
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import UserProfile from "../components/UserProfile";
+// import UserProfile from "../components/UserProfile";
 import ServicesTable from "../components/ServicesTable";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -271,7 +271,7 @@ export default function UserDashboard() {
             </Link>
           </div>
 
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
+          {/* <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
             <UserProfile
               data={userData}
               onUpdate={handleProfileUpdate}
@@ -282,7 +282,7 @@ export default function UserDashboard() {
             <div className="mt-6 bg-red-500/20 border border-red-500 rounded-2xl p-4">
               <p className="text-red-400">{error}</p>
             </div>
-          )}
+          )} */}
 
           {/* Zahtevi za posao — pending i accepted */}
           {jobRequests.length > 0 && (
