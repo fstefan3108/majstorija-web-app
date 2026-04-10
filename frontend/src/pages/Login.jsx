@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 import Header from "../components/Header";
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -42,26 +43,44 @@ const Login = () => {
       const json = await response.json();
 
       if (!response.ok || !json.success) {
-        if (json.errors) {
-          setErrors(Object.values(json.errors).flat());
-        } else {
-          setErrors([json.message || 'Pogrešan email ili lozinka']);
-        }
+        if (json.errors) setErrors(Object.values(json.errors).flat());
+        else setErrors([json.message || 'Pogrešan email ili lozinka']);
         setLoading(false);
         return;
       }
 
       const data = json.data;
       login(data);
+      navigate(data.role === 'Craftsman' ? '/workers/dashboard' : '/');
 
-      if (data.role === 'Craftsman') {
-        navigate('/workers/dashboard');
-      } else {
-        navigate('/');
-      }
-
-    } catch (err) {
+    } catch {
       setErrors(['Greška pri povezivanju sa serverom. Pokušajte ponovo.']);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setErrors([]);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential: credentialResponse.credential,
+          userType: formData.userType
+        })
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setErrors([json.message || 'Google prijava nije uspela']);
+        return;
+      }
+      login(json.data);
+      navigate(json.data.role === 'Craftsman' ? '/workers/dashboard' : '/');
+    } catch {
+      setErrors(['Greška pri Google prijavi. Pokušajte ponovo.']);
     } finally {
       setLoading(false);
     }
@@ -79,40 +98,53 @@ const Login = () => {
               <p className="text-gray-300">Prijavite se na Vaš nalog.</p>
             </div>
 
-            {/* Error poruke */}
             {errors.length > 0 && (
               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/40 rounded-lg">
                 <p className="text-red-400 text-sm font-semibold mb-2">Molimo ispravite sledeće greške:</p>
                 <ul className="space-y-1">
                   {errors.map((err, i) => (
                     <li key={i} className="text-red-400 text-sm flex items-start gap-2">
-                      <span className="mt-0.5 text-red-500 flex-shrink-0">•</span>
-                      {err}
+                      <span className="mt-0.5 text-red-500 flex-shrink-0">•</span>{err}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+              {/* Tip korisnika */}
               <div>
-                <label className="block text-gray-300 mb-3 font-medium">
-                  Prijavljujem se kao:
-                </label>
+                <label className="block text-gray-300 mb-3 font-medium">Prijavljujem se kao:</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button type="button"
-                    onClick={() => setFormData({ ...formData, userType: 'user' })}
-                    className={`py-3 px-4 rounded-lg font-medium transition ${formData.userType === 'user' ? 'bg-blue-600 text-white border-2 border-blue-500' : 'bg-gray-700/50 text-gray-300 border-2 border-gray-600 hover:border-gray-500'}`}>
-                    Korisnik
-                  </button>
-                  <button type="button"
-                    onClick={() => setFormData({ ...formData, userType: 'craftsman' })}
-                    className={`py-3 px-4 rounded-lg font-medium transition ${formData.userType === 'craftsman' ? 'bg-blue-600 text-white border-2 border-blue-500' : 'bg-gray-700/50 text-gray-300 border-2 border-gray-600 hover:border-gray-500'}`}>
-                    Majstor
-                  </button>
+                  {[['user','Korisnik'],['craftsman','Majstor']].map(([type, label]) => (
+                    <button key={type} type="button"
+                      onClick={() => setFormData({ ...formData, userType: type })}
+                      className={`py-3 px-4 rounded-lg font-medium transition ${formData.userType === type ? 'bg-blue-600 text-white border-2 border-blue-500' : 'bg-gray-700/50 text-gray-300 border-2 border-gray-600 hover:border-gray-500'}`}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {/* Google OAuth */}
+              <div>
+                <div className="flex justify-center">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setErrors(['Google prijava nije uspela'])}
+                    text="signin_with"
+                    shape="rectangular"
+                    theme="filled_black"
+                  />
+                </div>
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-gray-700" />
+                  <span className="text-gray-500 text-xs">ili sa email/lozinkom</span>
+                  <div className="flex-1 h-px bg-gray-700" />
+                </div>
+              </div>
+
+              {/* Email */}
               <div>
                 <label className="block text-gray-300 mb-2 font-medium">Email</label>
                 <div className="relative">
@@ -125,15 +157,17 @@ const Login = () => {
                 </div>
               </div>
 
+              {/* Lozinka */}
               <div>
                 <label className="block text-gray-300 mb-2 font-medium">Lozinka</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <Lock className="w-5 h-5 text-gray-400" />
                   </div>
-                  <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange}
+                  <input type={showPassword ? 'text' : 'password'} name="password"
+                    value={formData.password} onChange={handleChange}
                     className="w-full pl-12 pr-12 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                    placeholder="Unesite Šifru"/>
+                    placeholder="Unesite Šifru" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-300 transition">
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -161,9 +195,7 @@ const Login = () => {
             <div className="mt-8 text-center">
               <p className="text-gray-300">
                 Nemate nalog?{' '}
-                <Link to="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition">
-                  Registrujte se
-                </Link>
+                <Link to="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition">Registrujte se</Link>
               </p>
             </div>
           </div>

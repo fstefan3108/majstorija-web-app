@@ -22,29 +22,13 @@ namespace WebProdavnica.Controllers
             {
                 var result = _authService.RegisterUser(request);
                 if (result == null)
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message = "Email vec postoji ili registracija nije uspela"
-                    });
-                }
-                return Ok(new
-                {
-                    success = true,
-                    message = "Registracija uspesna!",
-                    data = result
-                });
+                    return BadRequest(new { success = false, message = "Email već postoji ili registracija nije uspela" });
+
+                return Ok(new { success = true, message = "Registracija uspešna!", data = result });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new
-                {
-                    success = false,
-                    message = ex.Message,
-                    inner = ex.InnerException?.Message,
-                    stackTrace = ex.StackTrace
-                });
+                return StatusCode(500, new { success = false, message = ex.Message, inner = ex.InnerException?.Message });
             }
         }
 
@@ -55,29 +39,13 @@ namespace WebProdavnica.Controllers
             {
                 var result = _authService.RegisterCraftsman(request);
                 if (result == null)
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message = "Email vec postoji ili registracija nije uspela"
-                    });
-                }
-                return Ok(new
-                {
-                    success = true,
-                    message = "Registracija uspesna!",
-                    data = result
-                });
+                    return BadRequest(new { success = false, message = "Email već postoji ili registracija nije uspela" });
+
+                return Ok(new { success = true, message = "Registracija uspešna!", data = result });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new
-                {
-                    success = false,
-                    message = ex.Message,
-                    inner = ex.InnerException?.Message,
-                    stackTrace = ex.StackTrace
-                });
+                return StatusCode(500, new { success = false, message = ex.Message, inner = ex.InnerException?.Message });
             }
         }
 
@@ -88,29 +56,67 @@ namespace WebProdavnica.Controllers
             {
                 var result = _authService.Login(request);
                 if (result == null)
-                {
-                    return Unauthorized(new
-                    {
-                        success = false,
-                        message = "Pogresan email ili lozinka"
-                    });
-                }
-                return Ok(new
-                {
-                    success = true,
-                    message = "Prijava uspesna!",
-                    data = result
-                });
+                    return Unauthorized(new { success = false, message = "Pogrešan email ili lozinka" });
+
+                return Ok(new { success = true, message = "Prijava uspešna!", data = result });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new
+                return StatusCode(500, new { success = false, message = ex.Message, inner = ex.InnerException?.Message });
+            }
+        }
+
+        [HttpPost("google")]
+        public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleAuthRequest request)
+        {
+            try
+            {
+                var result = await _authService.LoginWithGoogleAsync(request);
+                if (result == null)
                 {
-                    success = false,
-                    message = ex.Message,
-                    inner = ex.InnerException?.Message,
-                    stackTrace = ex.StackTrace
-                });
+                    var msg = request.UserType == "craftsman"
+                        ? "Nalog nije pronađen. Molimo registrujte se sa email/lozinkom, pa povežite Google nalog."
+                        : "Google prijava nije uspela. Pokušajte ponovo.";
+                    return Unauthorized(new { success = false, message = msg });
+                }
+
+                return Ok(new { success = true, message = "Prijava uspešna!", data = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            try
+            {
+                await _authService.ForgotPasswordAsync(request);
+                // Uvek vracamo isti odgovor (ne otkrivamo da li email postoji)
+                return Ok(new { success = true, message = "Ako email postoji u sistemu, link za resetovanje je poslat." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            try
+            {
+                var success = await _authService.ResetPasswordAsync(request);
+                if (!success)
+                    return BadRequest(new { success = false, message = "Token je nevažeći ili je istekao." });
+
+                return Ok(new { success = true, message = "Lozinka je uspešno promenjena." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
     }

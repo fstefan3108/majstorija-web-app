@@ -1,4 +1,4 @@
-﻿using WebProdavnica.DAL.Abstract;
+using WebProdavnica.DAL.Abstract;
 using WebProdavnica.Entities;
 
 namespace WebProdavnica.BusinessLayer.Impl
@@ -18,6 +18,9 @@ namespace WebProdavnica.BusinessLayer.Impl
 
         public bool Update(Craftsman craftsman) => _craftsmanRepository.Update(craftsman);
 
+        public bool UpdatePassword(int id, string newPasswordHash) =>
+            _craftsmanRepository.UpdatePassword(id, newPasswordHash);
+
         public bool Delete(int id) => _craftsmanRepository.Delete(id);
 
         public Craftsman? Get(int id) => _craftsmanRepository.Get(id);
@@ -26,15 +29,15 @@ namespace WebProdavnica.BusinessLayer.Impl
 
         public List<Craftsman> GetByProfession(string profession) =>
             _craftsmanRepository.GetAll()
-                .Where(c => c.Profession.ToLower().Contains(profession.ToLower()))
+                .Where(c => c.Professions.Any(p => p.ToLower().Contains(profession.ToLower()))
+                            || (c.Profession != null && c.Profession.ToLower().Contains(profession.ToLower())))
                 .ToList();
 
         public List<Craftsman> GetByLocation(string location) =>
             _craftsmanRepository.GetAll()
-                .Where(c => c.Location.ToLower().Contains(location.ToLower()))
+                .Where(c => c.Location != null && c.Location.ToLower().Contains(location.ToLower()))
                 .ToList();
 
-        // Pomoćne metode za izračunavanje ocena
         private decimal? GetAverageRating(int craftsmanId)
         {
             var reviews = _reviewService.GetReviewsByCraftsmanId(craftsmanId);
@@ -42,21 +45,18 @@ namespace WebProdavnica.BusinessLayer.Impl
             return (decimal)reviews.Average(r => r.Rating);
         }
 
-        private int GetRatingCount(int craftsmanId)
-        {
-            return _reviewService.GetReviewsByCraftsmanId(craftsmanId).Count;
-        }
-
-        // Pretraga po vise kriterijuma - glavna funkcionalnost platforme
         public List<Craftsman> Search(string? profession, string? location, decimal? maxRate, decimal? minRating)
         {
             var all = _craftsmanRepository.GetAll();
 
             if (!string.IsNullOrEmpty(profession))
-                all = all.Where(c => c.Profession.ToLower().Contains(profession.ToLower())).ToList();
+                all = all.Where(c =>
+                    c.Professions.Any(p => p.ToLower().Contains(profession.ToLower()))
+                    || (c.Profession != null && c.Profession.ToLower().Contains(profession.ToLower()))
+                ).ToList();
 
             if (!string.IsNullOrEmpty(location))
-                all = all.Where(c => c.Location.ToLower().Contains(location.ToLower())).ToList();
+                all = all.Where(c => c.Location != null && c.Location.ToLower().Contains(location.ToLower())).ToList();
 
             if (maxRate.HasValue)
                 all = all.Where(c => c.HourlyRate <= maxRate.Value).ToList();

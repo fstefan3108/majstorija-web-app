@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, Settings, ChevronDown, MessageSquare, ClipboardList } from "lucide-react";
+import { LogOut, Settings, ChevronDown, MessageSquare, ClipboardList, UserCircle } from "lucide-react";
 import Button from "../components/Button";
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
@@ -72,6 +72,12 @@ export default function Navbar() {
                   </div>
 
                   <div className="py-1">
+                    <Link
+                      to={isCraftsman ? `/craftsman/${user.id}` : `/user/${user.id}`}
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
+                      <UserCircle className="w-4 h-4" /> Profil
+                    </Link>
                     <Link to="/chat" onClick={() => setIsDropdownOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
                       <MessageSquare className="w-4 h-4" /> Poruke

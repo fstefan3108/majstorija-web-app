@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using WebProdavnica.Core.Constant;
 using WebProdavnica.DAL.Abstract;
 using WebProdavnica.Entities;
@@ -7,27 +7,42 @@ namespace WebProdavnica.DAL.Impl
 {
     public class CraftsmanRepository : ICraftsmanRepository
     {
+        private const string SelectColumns = @"
+            craftsman_id, first_name, last_name, email, phone,
+            location, profession, experience, hourly_rate, working_hours,
+            password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count,
+            professions, work_experience_description, profile_image_path, google_id,
+            password_reset_token, password_reset_token_expiry";
+
         public bool Add(Craftsman c)
         {
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
-
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"INSERT INTO dbo.craftsmen
-                (first_name, last_name, email, phone, location, profession, 
-                experience, hourly_rate, working_hours, password_hash)
-                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph)";
+                (first_name, last_name, email, phone, location, profession,
+                 experience, hourly_rate, working_hours, password_hash,
+                 professions, work_experience_description, google_id)
+                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph, @profs, @wed, @gid)";
 
-            cmd.Parameters.AddWithValue("@fn", c.FirstName);
-            cmd.Parameters.AddWithValue("@ln", c.LastName);
-            cmd.Parameters.AddWithValue("@e", c.Email);
-            cmd.Parameters.AddWithValue("@p", c.Phone);
-            cmd.Parameters.AddWithValue("@l", c.Location);
-            cmd.Parameters.AddWithValue("@pr", c.Profession);
+            var professionsStr = c.Professions.Count > 0
+                ? string.Join(",", c.Professions)
+                : c.Profession;
+            var firstProfession = c.Professions.Count > 0 ? c.Professions[0] : c.Profession;
+
+            cmd.Parameters.AddWithValue("@fn", c.FirstName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ln", c.LastName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@e", c.Email ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@p", c.Phone ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@l", c.Location ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@pr", firstProfession ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@ex", c.Experience);
             cmd.Parameters.AddWithValue("@hr", c.HourlyRate);
-            cmd.Parameters.AddWithValue("@wh", c.WorkingHours);
+            cmd.Parameters.AddWithValue("@wh", c.WorkingHours ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@ph", (object?)c.PasswordHash ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@profs", (object?)professionsStr ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@wed", (object?)c.WorkExperienceDescription ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@gid", (object?)c.GoogleId ?? DBNull.Value);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -46,18 +61,11 @@ namespace WebProdavnica.DAL.Impl
         {
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
-
             SqlCommand cmd = conn.CreateCommand();
-            cmd.CommandText = @"SELECT craftsman_id, first_name, last_name, email, phone, 
-                                location, profession, experience, hourly_rate, working_hours, 
-                                password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count
-                                FROM dbo.craftsmen WHERE craftsman_id=@id";
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.craftsmen WHERE craftsman_id=@id";
             cmd.Parameters.AddWithValue("@id", id);
-
             SqlDataReader r = cmd.ExecuteReader();
-            if (!r.Read()) return null;
-
-            return MapCraftsman(r);
+            return r.Read() ? MapCraftsman(r) : null;
         }
 
         public List<Craftsman> GetAll()
@@ -65,17 +73,10 @@ namespace WebProdavnica.DAL.Impl
             List<Craftsman> list = new();
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
-
             SqlCommand cmd = conn.CreateCommand();
-            cmd.CommandText = @"SELECT craftsman_id, first_name, last_name, email, phone, 
-                                location, profession, experience, hourly_rate, working_hours, 
-                                password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count
-                                FROM dbo.craftsmen";
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.craftsmen";
             SqlDataReader r = cmd.ExecuteReader();
-
-            while (r.Read())
-                list.Add(MapCraftsman(r));
-
+            while (r.Read()) list.Add(MapCraftsman(r));
             return list;
         }
 
@@ -83,107 +84,147 @@ namespace WebProdavnica.DAL.Impl
         {
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
-
             SqlCommand cmd = conn.CreateCommand();
-            cmd.CommandText = @"SELECT craftsman_id, first_name, last_name, email, phone, 
-                        location, profession, experience, hourly_rate, working_hours, 
-                        password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count
-                        FROM dbo.craftsmen WHERE email=@email";
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.craftsmen WHERE email=@email";
             cmd.Parameters.AddWithValue("@email", email);
-
             SqlDataReader r = cmd.ExecuteReader();
-            if (!r.Read()) return null;
-
-            return MapCraftsman(r);
+            return r.Read() ? MapCraftsman(r) : null;
         }
 
-        public bool Update(Craftsman craftsman)
+        public Craftsman? GetByGoogleId(string googleId)
         {
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
             SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.craftsmen WHERE google_id=@gid";
+            cmd.Parameters.AddWithValue("@gid", googleId);
+            SqlDataReader r = cmd.ExecuteReader();
+            return r.Read() ? MapCraftsman(r) : null;
+        }
 
+        public Craftsman? GetByResetToken(string token)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.craftsmen WHERE password_reset_token=@token AND password_reset_token_expiry > GETUTCDATE()";
+            cmd.Parameters.AddWithValue("@token", token);
+            SqlDataReader r = cmd.ExecuteReader();
+            return r.Read() ? MapCraftsman(r) : null;
+        }
+
+        public bool Update(Craftsman c)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"UPDATE dbo.craftsmen SET
-                first_name=@fn, 
-                last_name=@ln, 
-                email=@e, 
-                phone=@p,
-                location=@loc, 
-                profession=@prof, 
-                experience=@exp,
-                hourly_rate=@hr, 
-                working_hours=@wh,
-                password_hash=@ph,
-                refresh_token=@rt,
-                refresh_token_expiry=@rte,
-                average_rating=@ar,
-                rating_count=@rc
+                first_name=@fn, last_name=@ln, email=@e, phone=@p, location=@loc,
+                profession=@prof, experience=@exp, hourly_rate=@hr, working_hours=@wh,
+                password_hash=@ph, refresh_token=@rt, refresh_token_expiry=@rte,
+                average_rating=@ar, rating_count=@rc,
+                professions=@profs, work_experience_description=@wed,
+                profile_image_path=@pip, google_id=@gid,
+                password_reset_token=@prt, password_reset_token_expiry=@prte
                 WHERE craftsman_id=@id";
 
-            cmd.Parameters.AddWithValue("@fn", craftsman.FirstName);
-            cmd.Parameters.AddWithValue("@ln", craftsman.LastName);
-            cmd.Parameters.AddWithValue("@e", craftsman.Email);
-            cmd.Parameters.AddWithValue("@p", craftsman.Phone);
-            cmd.Parameters.AddWithValue("@loc", craftsman.Location);
-            cmd.Parameters.AddWithValue("@prof", craftsman.Profession);
-            cmd.Parameters.AddWithValue("@exp", craftsman.Experience);
-            cmd.Parameters.AddWithValue("@hr", craftsman.HourlyRate);
-            cmd.Parameters.AddWithValue("@wh", craftsman.WorkingHours);
-            cmd.Parameters.AddWithValue("@ph", (object?)craftsman.PasswordHash ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@rt", (object?)craftsman.RefreshToken ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@rte", (object?)craftsman.RefreshTokenExpiry ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@ar", (object?)craftsman.AverageRating ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@rc", craftsman.RatingCount);
-            cmd.Parameters.AddWithValue("@id", craftsman.CraftsmanId);
+            var professionsStr = c.Professions.Count > 0
+                ? string.Join(",", c.Professions)
+                : c.Profession;
+            var firstProfession = c.Professions.Count > 0 ? c.Professions[0] : c.Profession;
+
+            cmd.Parameters.AddWithValue("@fn", c.FirstName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ln", c.LastName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@e", c.Email ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@p", c.Phone ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@loc", c.Location ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@prof", firstProfession ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@exp", c.Experience);
+            cmd.Parameters.AddWithValue("@hr", c.HourlyRate);
+            cmd.Parameters.AddWithValue("@wh", c.WorkingHours ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ph", (object?)c.PasswordHash ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@rt", (object?)c.RefreshToken ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@rte", (object?)c.RefreshTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ar", (object?)c.AverageRating ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@rc", c.RatingCount);
+            cmd.Parameters.AddWithValue("@profs", (object?)professionsStr ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@wed", (object?)c.WorkExperienceDescription ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@pip", (object?)c.ProfileImagePath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@gid", (object?)c.GoogleId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@prt", (object?)c.PasswordResetToken ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@prte", (object?)c.PasswordResetTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", c.CraftsmanId);
 
             return cmd.ExecuteNonQuery() > 0;
         }
 
-        //  NOVA METODA: računa prosječnu ocjenu iz dbo.reviews
+        public bool UpdatePassword(int craftsmanId, string newPasswordHash)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE dbo.craftsmen SET password_hash=@ph, password_reset_token=NULL, password_reset_token_expiry=NULL WHERE craftsman_id=@id";
+            cmd.Parameters.AddWithValue("@ph", newPasswordHash);
+            cmd.Parameters.AddWithValue("@id", craftsmanId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
         public bool UpdateRating(int craftsmanId)
         {
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                UPDATE dbo.craftsmen
-                SET 
-                    rating_count = (
-                        SELECT COUNT(*) 
-                        FROM dbo.reviews r
+                UPDATE dbo.craftsmen SET
+                    rating_count = (SELECT COUNT(*) FROM dbo.reviews r
                         INNER JOIN dbo.job_orders j ON r.job_id = j.job_id
-                        WHERE j.craftsman_id = @cid
-                    ),
-                    average_rating = (
-                        SELECT AVG(CAST(r.rating AS DECIMAL(3,2))) 
-                        FROM dbo.reviews r
+                        WHERE j.craftsman_id = @cid),
+                    average_rating = (SELECT AVG(CAST(r.rating AS DECIMAL(3,2))) FROM dbo.reviews r
                         INNER JOIN dbo.job_orders j ON r.job_id = j.job_id
-                        WHERE j.craftsman_id = @cid
-                    )
+                        WHERE j.craftsman_id = @cid)
                 WHERE craftsman_id = @cid";
             cmd.Parameters.AddWithValue("@cid", craftsmanId);
             return cmd.ExecuteNonQuery() > 0;
         }
 
-        private Craftsman MapCraftsman(SqlDataReader r)
+        private static Craftsman MapCraftsman(SqlDataReader r)
         {
+            // Ucitaj professions string, fallback na profession kolonu
+            var professionsRaw = r["professions"] as string;
+            var professionFallback = r["profession"] as string;
+            var professionsStr = !string.IsNullOrWhiteSpace(professionsRaw)
+                ? professionsRaw
+                : professionFallback;
+
+            var professionsList = string.IsNullOrWhiteSpace(professionsStr)
+                ? new List<string>()
+                : professionsStr.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Trim())
+                    .ToList();
+
             return new Craftsman
             {
-                CraftsmanId = r.GetInt32(0),
-                FirstName = r.GetString(1),
-                LastName = r.GetString(2),
-                Email = r.GetString(3),
-                Phone = r.GetString(4),
-                Location = r.GetString(5),
-                Profession = r.GetString(6),
-                Experience = r.GetInt32(7),
-                HourlyRate = r.GetDecimal(8),
-                WorkingHours = r.GetString(9),
-                PasswordHash = r.IsDBNull(10) ? null : r.GetString(10),
-                RefreshToken = r.IsDBNull(11) ? null : r.GetString(11),
-                RefreshTokenExpiry = r.IsDBNull(12) ? null : r.GetDateTime(12),
-                AverageRating = r.IsDBNull(13) ? null : r.GetDecimal(13),
-                RatingCount = r.GetInt32(14)
+                CraftsmanId = (int)r["craftsman_id"],
+                FirstName = r["first_name"] as string,
+                LastName = r["last_name"] as string,
+                Email = r["email"] as string,
+                Phone = r["phone"] as string,
+                Location = r["location"] as string,
+                Profession = professionsList.FirstOrDefault() ?? professionFallback,
+                Professions = professionsList,
+                Experience = r["experience"] is int exp ? exp : 0,
+                HourlyRate = r["hourly_rate"] is decimal hr ? hr : 0m,
+                WorkingHours = r["working_hours"] as string,
+                WorkExperienceDescription = r["work_experience_description"] as string,
+                PasswordHash = r["password_hash"] as string,
+                RefreshToken = r["refresh_token"] as string,
+                RefreshTokenExpiry = r["refresh_token_expiry"] as DateTime?,
+                AverageRating = r["average_rating"] as decimal?,
+                RatingCount = r["rating_count"] is int rc ? rc : 0,
+                ProfileImagePath = r["profile_image_path"] as string,
+                GoogleId = r["google_id"] as string,
+                PasswordResetToken = r["password_reset_token"] as string,
+                PasswordResetTokenExpiry = r["password_reset_token_expiry"] as DateTime?
             };
         }
     }
