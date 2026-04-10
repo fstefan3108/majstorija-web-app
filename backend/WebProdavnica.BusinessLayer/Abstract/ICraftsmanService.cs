@@ -1,4 +1,4 @@
-﻿using WebProdavnica.Entities;
+using WebProdavnica.Entities;
 
 namespace WebProdavnica.BusinessLayer.Abstract
 {
@@ -6,6 +6,7 @@ namespace WebProdavnica.BusinessLayer.Abstract
     {
         bool Add(Craftsman craftsman);
         bool Update(Craftsman craftsman);
+        bool UpdatePassword(int id, string newPasswordHash);
         bool Delete(int id);
         Craftsman? Get(int id);
         List<Craftsman> GetAll();

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace WebProdavnica.Entities.DTOs
 {
@@ -16,12 +16,13 @@ namespace WebProdavnica.Entities.DTOs
 
         [Required(ErrorMessage = "Email je obavezan")]
         [RegularExpression(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,5}$",
-    ErrorMessage = "Email nije u ispravnom formatu (primer: ime@gmail.com)")]
+            ErrorMessage = "Email nije u ispravnom formatu (primer: ime@gmail.com)")]
         [StringLength(100, ErrorMessage = "Email ne sme biti duži od 100 karaktera")]
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Broj telefona je obavezan")]
-        [RegularExpression(@"^(\+381|0)[0-9]{8,9}$", ErrorMessage = "Telefon mora biti u formatu +381XXXXXXXXX ili 0XXXXXXXXX")]
+        [RegularExpression(@"^(\+381|0)[\s]?[0-9]{2}[\s]?[0-9]{3,8}$",
+            ErrorMessage = "Telefon mora biti u formatu +381 60 1234567 ili 060 1234567")]
         public string Phone { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Lozinka je obavezna")]
@@ -32,5 +33,8 @@ namespace WebProdavnica.Entities.DTOs
 
         [StringLength(100, ErrorMessage = "Lokacija ne sme biti duža od 100 karaktera")]
         public string Location { get; set; } = string.Empty;
+
+        // Opciono — popunjava se kada korisnik registruje nalog putem Google OAuth
+        public string? GoogleId { get; set; }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace WebProdavnica.Entities.DTOs
 {
@@ -16,12 +16,13 @@ namespace WebProdavnica.Entities.DTOs
 
         [Required(ErrorMessage = "Email je obavezan")]
         [RegularExpression(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,5}$",
-    ErrorMessage = "Email nije u ispravnom formatu (primer: ime@gmail.com)")]
+            ErrorMessage = "Email nije u ispravnom formatu (primer: ime@gmail.com)")]
         [StringLength(100, ErrorMessage = "Email ne sme biti duži od 100 karaktera")]
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Broj telefona je obavezan")]
-        [RegularExpression(@"^(\+381|0)[0-9]{8,9}$", ErrorMessage = "Telefon mora biti u formatu +381XXXXXXXXX ili 0XXXXXXXXX")]
+        [RegularExpression(@"^(\+381|0)[\s]?[0-9]{2}[\s]?[0-9]{3,8}$",
+            ErrorMessage = "Telefon mora biti u formatu +381 60 1234567 ili 060 1234567")]
         public string Phone { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Lozinka je obavezna")]
@@ -34,9 +35,9 @@ namespace WebProdavnica.Entities.DTOs
         [StringLength(100, MinimumLength = 2, ErrorMessage = "Lokacija mora imati između 2 i 100 karaktera")]
         public string Location { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Profesija je obavezna")]
-        [StringLength(100, MinimumLength = 2, ErrorMessage = "Profesija mora imati između 2 i 100 karaktera")]
-        public string Profession { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Izaberite barem jednu profesiju")]
+        [MinLength(1, ErrorMessage = "Izaberite barem jednu profesiju")]
+        public List<string> Professions { get; set; } = new();
 
         [Range(0, 60, ErrorMessage = "Iskustvo mora biti između 0 i 60 godina")]
         public int Experience { get; set; }
@@ -47,5 +48,11 @@ namespace WebProdavnica.Entities.DTOs
         [Required(ErrorMessage = "Radno vreme je obavezno")]
         [StringLength(100, MinimumLength = 3, ErrorMessage = "Radno vreme mora imati između 3 i 100 karaktera")]
         public string WorkingHours { get; set; } = string.Empty;
+
+        [StringLength(1000, ErrorMessage = "Opis iskustva ne sme biti duži od 1000 karaktera")]
+        public string? WorkExperienceDescription { get; set; }
+
+        // Opciono — popunjava se kada korisnik registruje nalog putem Google OAuth
+        public string? GoogleId { get; set; }
     }
 }
