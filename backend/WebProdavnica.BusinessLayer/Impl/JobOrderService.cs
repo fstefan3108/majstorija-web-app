@@ -59,5 +59,7 @@ namespace WebProdavnica.BusinessLayer.Impl
         public bool ResumeTimer(int jobId) => _jobOrderRepository.ResumeTimer(jobId);
         public TimerFinishResult FinishTimer(int jobId) => _jobOrderRepository.FinishTimer(jobId);
         public TimerState GetTimerState(int jobId) => _jobOrderRepository.GetTimerState(jobId);
+        public bool Reschedule(int jobId, DateTime newDate, TimeSpan newTime)
+            => _jobOrderRepository.Reschedule(jobId, newDate, newTime);
     }
 }

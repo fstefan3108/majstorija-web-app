@@ -12,7 +12,8 @@ namespace WebProdavnica.DAL.Impl
             location, profession, experience, hourly_rate, working_hours,
             password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count,
             professions, work_experience_description, profile_image_path, google_id,
-            password_reset_token, password_reset_token_expiry";
+            password_reset_token, password_reset_token_expiry,
+            is_verified, verification_token, verification_token_expiry";
 
         public bool Add(Craftsman c)
         {
@@ -22,8 +23,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"INSERT INTO dbo.craftsmen
                 (first_name, last_name, email, phone, location, profession,
                  experience, hourly_rate, working_hours, password_hash,
-                 professions, work_experience_description, google_id)
-                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph, @profs, @wed, @gid)";
+                 professions, work_experience_description, google_id,
+                 is_verified, verification_token, verification_token_expiry)
+                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph, @profs, @wed, @gid, @iv, @vt, @vte)";
 
             var professionsStr = c.Professions.Count > 0
                 ? string.Join(",", c.Professions)
@@ -43,6 +45,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@profs", (object?)professionsStr ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@wed", (object?)c.WorkExperienceDescription ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@gid", (object?)c.GoogleId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@iv", c.IsVerified);
+            cmd.Parameters.AddWithValue("@vt", (object?)c.VerificationToken ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@vte", (object?)c.VerificationTokenExpiry ?? DBNull.Value);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -169,6 +174,39 @@ namespace WebProdavnica.DAL.Impl
             return cmd.ExecuteNonQuery() > 0;
         }
 
+        public Craftsman? GetByVerificationToken(string token)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.craftsmen WHERE verification_token=@token AND verification_token_expiry > GETUTCDATE()";
+            cmd.Parameters.AddWithValue("@token", token);
+            SqlDataReader r = cmd.ExecuteReader();
+            return r.Read() ? MapCraftsman(r) : null;
+        }
+
+        public bool SetVerified(int craftsmanId)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE dbo.craftsmen SET is_verified=1, verification_token=NULL, verification_token_expiry=NULL WHERE craftsman_id=@id";
+            cmd.Parameters.AddWithValue("@id", craftsmanId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public bool UpdateVerificationToken(int craftsmanId, string token, DateTime expiry)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE dbo.craftsmen SET verification_token=@token, verification_token_expiry=@expiry WHERE craftsman_id=@id";
+            cmd.Parameters.AddWithValue("@token", token);
+            cmd.Parameters.AddWithValue("@expiry", expiry);
+            cmd.Parameters.AddWithValue("@id", craftsmanId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
         public bool UpdateRating(int craftsmanId)
         {
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
@@ -224,7 +262,10 @@ namespace WebProdavnica.DAL.Impl
                 ProfileImagePath = r["profile_image_path"] as string,
                 GoogleId = r["google_id"] as string,
                 PasswordResetToken = r["password_reset_token"] as string,
-                PasswordResetTokenExpiry = r["password_reset_token_expiry"] as DateTime?
+                PasswordResetTokenExpiry = r["password_reset_token_expiry"] as DateTime?,
+                IsVerified = r["is_verified"] != DBNull.Value && (bool)r["is_verified"],
+                VerificationToken = r["verification_token"] as string,
+                VerificationTokenExpiry = r["verification_token_expiry"] as DateTime?
             };
         }
     }

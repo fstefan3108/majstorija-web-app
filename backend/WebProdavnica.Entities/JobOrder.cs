@@ -10,13 +10,14 @@ namespace WebProdavnica.Entities
     {
         public int JobId { get; set; }
         public DateTime ScheduledDate { get; set; }
+        public TimeSpan? ScheduledTime { get; set; }  // vreme pocetka posla (npr. 09:00)
         public string? JobDescription { get; set; }
         public string? Status { get; set; }
         public decimal TotalPrice { get; set; }
-        public decimal HourlyRate { get; set; }     
+        public decimal HourlyRate { get; set; }
         public int EstimatedHours { get; set; }
-        public DateTime? StartedAt { get; set; }     
-        public DateTime? EndedAt { get; set; }       
+        public DateTime? StartedAt { get; set; }
+        public DateTime? EndedAt { get; set; }
         public int? ActualSeconds { get; set; }
         public int? EstimatedMinutes { get; set; }  // procena majstora u minutima
         public int? JobRequestId { get; set; }      // FK na job_requests

@@ -58,11 +58,46 @@ namespace WebProdavnica.Controllers
                 if (result == null)
                     return Unauthorized(new { success = false, message = "Pogrešan email ili lozinka" });
 
+                if (result.RequiresEmailVerification)
+                    return Unauthorized(new { success = false, message = "Email adresa nije verifikovana. Proverite vaš inbox.", code = "EMAIL_NOT_VERIFIED", email = result.Email, userType = request.UserType });
+
                 return Ok(new { success = true, message = "Prijava uspešna!", data = result });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { success = false, message = ex.Message, inner = ex.InnerException?.Message });
+            }
+        }
+
+        [HttpGet("verify-email")]
+        public async Task<IActionResult> VerifyEmail([FromQuery] VerifyEmailRequest request)
+        {
+            try
+            {
+                var result = await _authService.VerifyEmailAsync(request);
+                if (result == null)
+                    return BadRequest(new { success = false, message = "Link za verifikaciju je nevažeći ili je istekao." });
+
+                return Ok(new { success = true, message = "Email je uspešno potvrđen!", data = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("resend-verification")]
+        public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request)
+        {
+            try
+            {
+                var success = await _authService.ResendVerificationAsync(request);
+                // Uvek vracamo isti odgovor (ne otkrivamo da li email postoji)
+                return Ok(new { success = true, message = "Ako nalog postoji i nije verifikovan, novi link je poslat." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
 

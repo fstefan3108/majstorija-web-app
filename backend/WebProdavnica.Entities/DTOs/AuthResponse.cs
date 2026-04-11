@@ -15,5 +15,6 @@ namespace WebProdavnica.Entities.DTOs
         public string FullName { get; set; } = string.Empty;
         public int UserId { get; set; }
         public string Role { get; set; } = string.Empty; // "User" ili "Craftsman"
+        public bool RequiresEmailVerification { get; set; } = false;
     }
 }

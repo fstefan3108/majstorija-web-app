@@ -2,6 +2,10 @@
 using WebProdavnica.BusinessLayer.Impl;
 using WebProdavnica.DAL.Abstract;
 using WebProdavnica.DAL.Impl;
+using ICraftsmanScheduleRepository = WebProdavnica.DAL.Abstract.ICraftsmanScheduleRepository;
+using CraftsmanScheduleRepository = WebProdavnica.DAL.Impl.CraftsmanScheduleRepository;
+using ICraftsmanScheduleService = WebProdavnica.BusinessLayer.Abstract.ICraftsmanScheduleService;
+using CraftsmanScheduleService = WebProdavnica.BusinessLayer.Impl.CraftsmanScheduleService;
 using Entities.Configuration;
 using WebProdavnica.Entities.Configuration;
 
@@ -25,6 +29,7 @@ var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>()
 builder.Services.AddSingleton(smtpSettings);
 
 // REGISTER REPOSITORIES
+builder.Services.AddScoped<ICraftsmanScheduleRepository, CraftsmanScheduleRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IJobOrderRepository, JobOrderRepository>();
@@ -36,6 +41,7 @@ builder.Services.AddScoped<IJobRequestRepository, JobRequestRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // REGISTER BUSINESS LAYER SERVICES
+builder.Services.AddScoped<ICraftsmanScheduleService, CraftsmanScheduleService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
 builder.Services.AddScoped<IJobOrderService, JobOrderService>();

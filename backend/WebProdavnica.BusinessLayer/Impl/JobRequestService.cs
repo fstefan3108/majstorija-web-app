@@ -163,7 +163,8 @@ namespace WebProdavnica.BusinessLayer.Impl
 
             var jobOrder = new JobOrder
             {
-                ScheduledDate    = req.ScheduledDate,
+                ScheduledDate    = req.ScheduledDate.Date,
+                ScheduledTime    = req.ScheduledDate.TimeOfDay,   // vreme preuzeto iz datuma zahteva
                 JobDescription   = req.Description,
                 Status           = "zakazano",
                 TotalPrice       = req.EstimatedPrice.Value,

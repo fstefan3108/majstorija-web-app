@@ -22,5 +22,8 @@ namespace WebProdavnica.DAL.Abstract
         bool ResumeTimer(int jobId);
         TimerFinishResult FinishTimer(int jobId);
         TimerState GetTimerState(int jobId);
+
+        // Reschedule
+        bool Reschedule(int jobId, DateTime newDate, TimeSpan newTime);
     }
 }

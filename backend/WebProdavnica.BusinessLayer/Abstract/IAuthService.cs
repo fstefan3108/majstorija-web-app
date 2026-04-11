@@ -10,5 +10,7 @@ namespace WebProdavnica.BusinessLayer.Abstract
         Task<AuthResponse?> LoginWithGoogleAsync(GoogleAuthRequest request);
         Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request);
         Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
+        Task<AuthResponse?> VerifyEmailAsync(VerifyEmailRequest request);
+        Task<bool> ResendVerificationAsync(ResendVerificationRequest request);
     }
 }

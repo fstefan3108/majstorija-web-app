@@ -259,8 +259,10 @@ export default function Register() {
         }
       }
 
-      login(data);
-      navigate(data.role === 'Craftsman' ? '/workers/dashboard' : '/');
+      // Nakon registracije korisnik mora verifikovati email — NE logujemo ga
+      navigate('/verify-email-pending', {
+        state: { email: data.email, userType: isWorker ? 'craftsman' : 'user' }
+      });
 
     } catch {
       showErrors(['Greška pri povezivanju sa serverom. Pokušajte ponovo.']);

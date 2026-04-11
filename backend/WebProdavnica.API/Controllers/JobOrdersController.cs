@@ -428,6 +428,36 @@ namespace WebProdavnica.API.Controllers
             }
         }
 
+        // PATCH /api/joborders/{id}/reschedule
+        [HttpPatch("{id}/reschedule")]
+        public IActionResult Reschedule(int id, [FromBody] RescheduleRequest request)
+        {
+            try
+            {
+                if (!DateTime.TryParse(request.NewDate, out var newDate))
+                    return BadRequest(new { success = false, message = "Neispravan datum." });
+                if (!TimeSpan.TryParse(request.NewTime, out var newTime))
+                    return BadRequest(new { success = false, message = "Neispravno vreme." });
+
+                var job = _jobOrderService.Get(id);
+                if (job == null)
+                    return NotFound(new { success = false, message = "Posao nije pronađen." });
+
+                if (!string.Equals(job.Status, "zakazano", StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { success = false, message = "Samo zakazani poslovi mogu biti pomereni." });
+
+                bool ok = _jobOrderService.Reschedule(id, newDate, newTime);
+                if (ok)
+                    return Ok(new { success = true, message = "Termin uspešno promenjen." });
+
+                return BadRequest(new { success = false, message = "Promena termina nije uspela." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
         [HttpPost("{id}/review")]
         public IActionResult Review(int id, [FromBody] ReviewRequest request)
         {
@@ -490,5 +520,12 @@ namespace WebProdavnica.API.Controllers
     public class StatusUpdate
     {
         public string Status { get; set; }
+    }
+
+    // Helper klasa za reschedule
+    public class RescheduleRequest
+    {
+        public string NewDate { get; set; } = "";  // "2025-06-15"
+        public string NewTime { get; set; } = "";  // "09:00"
     }
 }

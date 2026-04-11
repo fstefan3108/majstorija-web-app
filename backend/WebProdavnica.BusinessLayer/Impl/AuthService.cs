@@ -60,6 +60,9 @@ namespace WebProdavnica.BusinessLayer.Impl
                 if (!BCrypt.Net.BCrypt.Verify(request.Password, craftsman.PasswordHash))
                     return null;
 
+                if (!craftsman.IsVerified)
+                    return new AuthResponse { RequiresEmailVerification = true, Email = craftsman.Email!, UserId = craftsman.CraftsmanId, Role = "Craftsman" };
+
                 craftsman.RefreshToken = _jwtService.GenerateRefreshToken();
                 craftsman.RefreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
                 _craftsmanRepository.Update(craftsman);
@@ -88,6 +91,9 @@ namespace WebProdavnica.BusinessLayer.Impl
                 if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                     return null;
 
+                if (!user.IsVerified)
+                    return new AuthResponse { RequiresEmailVerification = true, Email = user.Email, UserId = user.UserId, Role = "User" };
+
                 user.RefreshToken = _jwtService.GenerateRefreshToken();
                 user.RefreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
                 _userRepository.Update(user);
@@ -115,6 +121,9 @@ namespace WebProdavnica.BusinessLayer.Impl
             if (_userRepository.GetByEmail(request.Email) != null)
                 return null;
 
+            var verificationToken = Guid.NewGuid().ToString("N");
+            var verificationExpiry = DateTime.UtcNow.AddHours(24);
+
             var user = new User
             {
                 FirstName = request.FirstName.Trim(),
@@ -124,17 +133,26 @@ namespace WebProdavnica.BusinessLayer.Impl
                 Location = request.Location,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 GoogleId = request.GoogleId,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.Now,
+                IsVerified = false,
+                VerificationToken = verificationToken,
+                VerificationTokenExpiry = verificationExpiry
             };
 
             _userRepository.Add(user);
+            var created = _userRepository.GetByEmail(request.Email);
+            if (created == null) return null;
 
-            return Login(new LoginRequest
+            _ = SendVerificationEmailAsync(request.Email, verificationToken, "user", created.FirstName);
+
+            return new AuthResponse
             {
-                Email = request.Email,
-                Password = request.Password,
-                UserType = "user"
-            });
+                RequiresEmailVerification = true,
+                Email = created.Email,
+                FullName = $"{created.FirstName} {created.LastName}",
+                UserId = created.UserId,
+                Role = "User"
+            };
         }
 
         // ─── Register Craftsman ───────────────────────────────────────────────────
@@ -142,6 +160,9 @@ namespace WebProdavnica.BusinessLayer.Impl
         {
             if (_craftsmanRepository.GetByEmail(request.Email) != null)
                 return null;
+
+            var verificationToken = Guid.NewGuid().ToString("N");
+            var verificationExpiry = DateTime.UtcNow.AddHours(24);
 
             var craftsman = new Craftsman
             {
@@ -157,17 +178,26 @@ namespace WebProdavnica.BusinessLayer.Impl
                 WorkingHours = request.WorkingHours,
                 WorkExperienceDescription = request.WorkExperienceDescription,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                GoogleId = request.GoogleId
+                GoogleId = request.GoogleId,
+                IsVerified = false,
+                VerificationToken = verificationToken,
+                VerificationTokenExpiry = verificationExpiry
             };
 
             _craftsmanRepository.Add(craftsman);
+            var created = _craftsmanRepository.GetByEmail(request.Email);
+            if (created == null) return null;
 
-            return Login(new LoginRequest
+            _ = SendVerificationEmailAsync(request.Email, verificationToken, "craftsman", created.FirstName ?? "Majstoru");
+
+            return new AuthResponse
             {
-                Email = request.Email,
-                Password = request.Password,
-                UserType = "craftsman"
-            });
+                RequiresEmailVerification = true,
+                Email = created.Email!,
+                FullName = $"{created.FirstName} {created.LastName}",
+                UserId = created.CraftsmanId,
+                Role = "Craftsman"
+            };
         }
 
         // ─── Google OAuth Login/Register ──────────────────────────────────────────
@@ -248,15 +278,17 @@ namespace WebProdavnica.BusinessLayer.Impl
                         PasswordHash = "",
                         Location = "",
                         CreatedAt = DateTime.Now,
-                        GoogleId = googleId
+                        GoogleId = googleId,
+                        IsVerified = true // Google već verifikuje email
                     };
                     _userRepository.Add(user);
                     user = _userRepository.GetByEmail(email);
                     if (user == null) return null;
                 }
-                else if (user.GoogleId != googleId)
+                else
                 {
-                    user.GoogleId = googleId;
+                    if (user.GoogleId != googleId) user.GoogleId = googleId;
+                    if (!user.IsVerified) { user.IsVerified = true; user.VerificationToken = null; user.VerificationTokenExpiry = null; }
                     _userRepository.Update(user);
                 }
 
@@ -344,7 +376,140 @@ namespace WebProdavnica.BusinessLayer.Impl
             }
         }
 
+        // ─── Verify Email ─────────────────────────────────────────────────────────
+        public async Task<AuthResponse?> VerifyEmailAsync(VerifyEmailRequest request)
+        {
+            await Task.CompletedTask;
+
+            if (request.UserType == "craftsman")
+            {
+                var craftsman = _craftsmanRepository.GetByVerificationToken(request.Token);
+                if (craftsman == null || craftsman.Email?.ToLower() != request.Email.ToLower())
+                    return null;
+
+                _craftsmanRepository.SetVerified(craftsman.CraftsmanId);
+
+                craftsman.RefreshToken = _jwtService.GenerateRefreshToken();
+                craftsman.RefreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
+                craftsman.IsVerified = true;
+                _craftsmanRepository.Update(craftsman);
+
+                var accessToken = _jwtService.GenerateAccessToken(
+                    craftsman.CraftsmanId, craftsman.Email,
+                    $"{craftsman.FirstName} {craftsman.LastName}", "Craftsman");
+
+                return new AuthResponse
+                {
+                    AccessToken = accessToken,
+                    RefreshToken = craftsman.RefreshToken,
+                    ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60,
+                    Email = craftsman.Email!,
+                    FullName = $"{craftsman.FirstName} {craftsman.LastName}",
+                    UserId = craftsman.CraftsmanId,
+                    Role = "Craftsman"
+                };
+            }
+            else
+            {
+                var user = _userRepository.GetByVerificationToken(request.Token);
+                if (user == null || user.Email.ToLower() != request.Email.ToLower())
+                    return null;
+
+                _userRepository.SetVerified(user.UserId);
+
+                user.RefreshToken = _jwtService.GenerateRefreshToken();
+                user.RefreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
+                user.IsVerified = true;
+                _userRepository.Update(user);
+
+                var accessToken = _jwtService.GenerateAccessToken(
+                    user.UserId, user.Email,
+                    $"{user.FirstName} {user.LastName}", "User");
+
+                return new AuthResponse
+                {
+                    AccessToken = accessToken,
+                    RefreshToken = user.RefreshToken,
+                    ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60,
+                    Email = user.Email,
+                    FullName = $"{user.FirstName} {user.LastName}",
+                    UserId = user.UserId,
+                    Role = "User"
+                };
+            }
+        }
+
+        // ─── Resend Verification ──────────────────────────────────────────────────
+        public async Task<bool> ResendVerificationAsync(ResendVerificationRequest request)
+        {
+            var email = request.Email.Trim().ToLower();
+            var token = Guid.NewGuid().ToString("N");
+            var expiry = DateTime.UtcNow.AddHours(24);
+
+            if (request.UserType == "craftsman")
+            {
+                var craftsman = _craftsmanRepository.GetByEmail(email);
+                if (craftsman == null || craftsman.IsVerified) return false;
+                _craftsmanRepository.UpdateVerificationToken(craftsman.CraftsmanId, token, expiry);
+                await SendVerificationEmailAsync(email, token, "craftsman", craftsman.FirstName ?? "Majstoru");
+            }
+            else
+            {
+                var user = _userRepository.GetByEmail(email);
+                if (user == null || user.IsVerified) return false;
+                _userRepository.UpdateVerificationToken(user.UserId, token, expiry);
+                await SendVerificationEmailAsync(email, token, "user", user.FirstName);
+            }
+
+            return true;
+        }
+
         // ─── Email helper ─────────────────────────────────────────────────────────
+        private async Task SendVerificationEmailAsync(string toEmail, string token, string userType, string firstName)
+        {
+            try
+            {
+                var verifyUrl = $"{FrontendBaseUrl}/verify-email/confirm?token={token}&email={Uri.EscapeDataString(toEmail)}&type={userType}";
+
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(_smtpSettings.FromName, _smtpSettings.User));
+                message.To.Add(new MailboxAddress(firstName, toEmail));
+                message.Subject = "Potvrdite vaš email — Majstorija";
+
+                var builder = new BodyBuilder
+                {
+                    HtmlBody = $@"
+<!DOCTYPE html>
+<html>
+<body style=""font-family:Arial,sans-serif;background:#f3f4f6;padding:20px"">
+  <div style=""max-width:480px;margin:0 auto;background:#1f2937;border-radius:12px;padding:32px;color:#f9fafb"">
+    <h2 style=""margin-top:0;color:#60a5fa"">Dobrodošli na Majstoriju!</h2>
+    <p>Zdravo <strong>{firstName}</strong>,</p>
+    <p>Hvala na registraciji. Kliknite dugme ispod da potvrdite vašu email adresu i aktivirate nalog.</p>
+    <p style=""margin:24px 0"">
+      <a href=""{verifyUrl}"" style=""background:#2563eb;color:#fff;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block"">
+        Potvrdi email adresu
+      </a>
+    </p>
+    <p style=""color:#9ca3af;font-size:13px"">Link važi <strong>24 sata</strong>.<br>Ako niste kreirali nalog na Majstoriji, ignorišite ovaj email.</p>
+  </div>
+</body>
+</html>"
+                };
+                message.Body = builder.ToMessageBody();
+
+                using var client = new SmtpClient();
+                await client.ConnectAsync(_smtpSettings.Host, _smtpSettings.Port, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync(_smtpSettings.User, _smtpSettings.Pass);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AuthService] Verification email greška: {ex.Message}");
+            }
+        }
+
         private async Task SendResetEmailAsync(string toEmail, string token, string userType, string firstName)
         {
             try

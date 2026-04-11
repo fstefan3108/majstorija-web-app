@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import Header from "../components/Header";
 import Footer from '../components/Footer';
@@ -14,6 +14,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
+  const [unverifiedInfo, setUnverifiedInfo] = useState(null); // { email, userType }
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -43,8 +44,14 @@ const Login = () => {
       const json = await response.json();
 
       if (!response.ok || !json.success) {
-        if (json.errors) setErrors(Object.values(json.errors).flat());
-        else setErrors([json.message || 'Pogrešan email ili lozinka']);
+        if (json.code === 'EMAIL_NOT_VERIFIED') {
+          setUnverifiedInfo({ email: json.email, userType: json.userType || formData.userType });
+          setErrors([]);
+        } else if (json.errors) {
+          setErrors(Object.values(json.errors).flat());
+        } else {
+          setErrors([json.message || 'Pogrešan email ili lozinka']);
+        }
         setLoading(false);
         return;
       }
@@ -108,6 +115,26 @@ const Login = () => {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {unverifiedInfo && (
+              <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/40 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-yellow-400 text-sm font-semibold mb-1">Email nije verifikovan</p>
+                    <p className="text-gray-300 text-sm mb-3">
+                      Proverite vaš inbox i kliknite na link za verifikaciju.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/verify-email-pending', { state: unverifiedInfo })}
+                      className="text-sm text-blue-400 hover:text-blue-300 underline transition">
+                      Pošalji novi verifikacioni email →
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

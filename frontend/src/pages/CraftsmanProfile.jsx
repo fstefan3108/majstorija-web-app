@@ -7,6 +7,7 @@ import {
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ContactModal from '../components/ContactModal';
+import CalendarGrid from '../components/CalendarGrid';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -62,6 +63,7 @@ const CraftsmanProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [calendarData, setCalendarData] = useState({ weeklySchedule: [], jobSlots: [] });
 
   useEffect(() => {
     const fetchCraftsmanData = async () => {
@@ -90,6 +92,20 @@ const CraftsmanProfile = () => {
         const reviewsResponse = await api.getCraftsmanReviews(id);
         const reviewsData = reviewsResponse.success ? reviewsResponse.data : [];
         setReviews(reviewsData);
+
+        // Fetch calendar data
+        try {
+          const from = new Date().toISOString().slice(0, 10);
+          const to   = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+          const calRes = await fetch(`${API_BASE}/api/craftsmen/${id}/schedule/calendar?from=${from}&to=${to}`);
+          if (calRes.ok) {
+            const calJson = await calRes.json();
+            setCalendarData({
+              weeklySchedule: calJson.data?.weeklySchedule || [],
+              jobSlots:       calJson.data?.jobSlots       || [],
+            });
+          }
+        } catch { /* tiho */ }
 
       } catch (err) {
         setError(err.message);
@@ -360,6 +376,26 @@ const CraftsmanProfile = () => {
                   </p>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* Kalendar dostupnosti */}
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 mt-6">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <CalendarClock className="w-6 h-6 text-blue-400" />
+              Dostupnost
+            </h2>
+            {calendarData.weeklySchedule.length === 0 ? (
+              <div className="text-center py-10">
+                <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">Majstor još nije postavio raspored dostupnosti.</p>
+              </div>
+            ) : (
+              <CalendarGrid
+                weeklySchedule={calendarData.weeklySchedule}
+                jobSlots={calendarData.jobSlots}
+                readOnly={true}
+              />
             )}
           </div>
 

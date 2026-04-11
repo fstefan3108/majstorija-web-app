@@ -9,9 +9,12 @@ namespace WebProdavnica.DAL.Abstract
         User? GetByEmail(string email);
         User? GetByGoogleId(string googleId);
         User? GetByResetToken(string token);
+        User? GetByVerificationToken(string token);
         List<User> GetAll();
         bool Update(User user);
         bool UpdatePassword(int userId, string newPasswordHash);
+        bool SetVerified(int userId);
+        bool UpdateVerificationToken(int userId, string token, DateTime expiry);
         bool Delete(int id);
     }
 }

@@ -11,7 +11,8 @@ namespace WebProdavnica.DAL.Impl
         private const string SelectColumns = @"
             job_id, scheduled_date, job_description, status,
             total_price, user_id, craftsman_id, hourly_rate, estimated_hours,
-            started_at, ended_at, actual_seconds, estimated_minutes, job_request_id";
+            started_at, ended_at, actual_seconds, estimated_minutes, job_request_id,
+            scheduled_time";
 
         // Indices match SelectColumns above (0-based).
         private static JobOrder Map(SqlDataReader r) => new JobOrder
@@ -30,6 +31,7 @@ namespace WebProdavnica.DAL.Impl
             ActualSeconds    = r.IsDBNull(11) ? null : r.GetInt32(11),
             EstimatedMinutes = r.IsDBNull(12) ? null : r.GetInt32(12),
             JobRequestId     = r.IsDBNull(13) ? null : r.GetInt32(13),
+            ScheduledTime    = r.IsDBNull(14) ? null : r.GetTimeSpan(14),
         };
 
         // ── CRUD ──────────────────────────────────────────────────────────────
@@ -42,20 +44,21 @@ namespace WebProdavnica.DAL.Impl
                 INSERT INTO dbo.job_orders
                     (scheduled_date, job_description, status, total_price,
                      user_id, craftsman_id, hourly_rate, estimated_hours,
-                     estimated_minutes, job_request_id)
+                     estimated_minutes, job_request_id, scheduled_time)
                 OUTPUT INSERTED.job_id
-                VALUES (@sd, @jd, @st, @tp, @uid, @cid, @hr, @eh, @em, @jrid)";
+                VALUES (@sd, @jd, @st, @tp, @uid, @cid, @hr, @eh, @em, @jrid, @stime)";
 
-            cmd.Parameters.AddWithValue("@sd",   j.ScheduledDate);
-            cmd.Parameters.AddWithValue("@jd",   j.JobDescription ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@st",   j.Status ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@tp",   j.TotalPrice);
-            cmd.Parameters.AddWithValue("@uid",  j.UserId);
-            cmd.Parameters.AddWithValue("@cid",  j.CraftsmanId);
-            cmd.Parameters.AddWithValue("@hr",   j.HourlyRate);
-            cmd.Parameters.AddWithValue("@eh",   j.EstimatedHours);
-            cmd.Parameters.AddWithValue("@em",   j.EstimatedMinutes ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@jrid", j.JobRequestId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@sd",    j.ScheduledDate);
+            cmd.Parameters.AddWithValue("@jd",    j.JobDescription ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@st",    j.Status ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@tp",    j.TotalPrice);
+            cmd.Parameters.AddWithValue("@uid",   j.UserId);
+            cmd.Parameters.AddWithValue("@cid",   j.CraftsmanId);
+            cmd.Parameters.AddWithValue("@hr",    j.HourlyRate);
+            cmd.Parameters.AddWithValue("@eh",    j.EstimatedHours);
+            cmd.Parameters.AddWithValue("@em",    j.EstimatedMinutes ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@jrid",  j.JobRequestId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@stime", j.ScheduledTime.HasValue ? (object)j.ScheduledTime.Value : DBNull.Value);
 
             var newId = cmd.ExecuteScalar();
             if (newId == null) return false;
@@ -113,20 +116,22 @@ namespace WebProdavnica.DAL.Impl
                     ended_at=@ea,
                     actual_seconds=@as,
                     estimated_minutes=@em,
-                    job_request_id=@jrid
+                    job_request_id=@jrid,
+                    scheduled_time=@stime
                 WHERE job_id=@id";
-            cmd.Parameters.AddWithValue("@sd",   j.ScheduledDate);
-            cmd.Parameters.AddWithValue("@jd",   j.JobDescription ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@st",   j.Status ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@tp",   j.TotalPrice);
-            cmd.Parameters.AddWithValue("@hr",   j.HourlyRate);
-            cmd.Parameters.AddWithValue("@eh",   j.EstimatedHours);
-            cmd.Parameters.AddWithValue("@sa",   j.StartedAt ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@ea",   j.EndedAt ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@as",   j.ActualSeconds ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@em",   j.EstimatedMinutes ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@jrid", j.JobRequestId ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@id",   j.JobId);
+            cmd.Parameters.AddWithValue("@sd",    j.ScheduledDate);
+            cmd.Parameters.AddWithValue("@jd",    j.JobDescription ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@st",    j.Status ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@tp",    j.TotalPrice);
+            cmd.Parameters.AddWithValue("@hr",    j.HourlyRate);
+            cmd.Parameters.AddWithValue("@eh",    j.EstimatedHours);
+            cmd.Parameters.AddWithValue("@sa",    j.StartedAt ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ea",    j.EndedAt ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@as",    j.ActualSeconds ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@em",    j.EstimatedMinutes ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@jrid",  j.JobRequestId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@stime", j.ScheduledTime.HasValue ? (object)j.ScheduledTime.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@id",    j.JobId);
             return cmd.ExecuteNonQuery() > 0;
         }
 
@@ -339,6 +344,24 @@ namespace WebProdavnica.DAL.Impl
                                            ? null
                                            : (DateTime?)DateTime.SpecifyKind(Convert.ToDateTime(raw), DateTimeKind.Utc),
             };
+        }
+
+        // ── Reschedule ────────────────────────────────────────────────────────
+        public bool Reschedule(int jobId, DateTime newDate, TimeSpan newTime)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE dbo.job_orders
+                SET scheduled_date = @date,
+                    scheduled_time = @time
+                WHERE job_id = @id
+                  AND status IN ('zakazano', 'Zakazano')";
+            cmd.Parameters.AddWithValue("@date", newDate.Date);
+            cmd.Parameters.AddWithValue("@time", newTime);
+            cmd.Parameters.AddWithValue("@id",   jobId);
+            return cmd.ExecuteNonQuery() > 0;
         }
     }
 }

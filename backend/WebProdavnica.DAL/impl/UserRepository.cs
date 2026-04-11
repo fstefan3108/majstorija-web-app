@@ -13,7 +13,8 @@ namespace WebProdavnica.DAL.Impl
             user_id, first_name, last_name, email, phone,
             password_hash, location, created_at,
             refresh_token, refresh_token_expiry,
-            google_id, password_reset_token, password_reset_token_expiry, profile_image_path";
+            google_id, password_reset_token, password_reset_token_expiry, profile_image_path,
+            is_verified, verification_token, verification_token_expiry";
 
         public bool Add(User u)
         {
@@ -21,8 +22,9 @@ namespace WebProdavnica.DAL.Impl
             conn.Open();
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"INSERT INTO dbo.users
-                (first_name, last_name, email, phone, password_hash, location, created_at, google_id)
-                VALUES(@fn, @ln, @e, @p, @ph, @l, @ca, @gid)";
+                (first_name, last_name, email, phone, password_hash, location, created_at, google_id,
+                 is_verified, verification_token, verification_token_expiry)
+                VALUES(@fn, @ln, @e, @p, @ph, @l, @ca, @gid, @iv, @vt, @vte)";
 
             cmd.Parameters.AddWithValue("@fn", u.FirstName);
             cmd.Parameters.AddWithValue("@ln", u.LastName);
@@ -32,6 +34,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@l", string.IsNullOrEmpty(u.Location) ? (object)DBNull.Value : u.Location);
             cmd.Parameters.AddWithValue("@ca", u.CreatedAt);
             cmd.Parameters.AddWithValue("@gid", (object?)u.GoogleId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@iv", u.IsVerified);
+            cmd.Parameters.AddWithValue("@vt", (object?)u.VerificationToken ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@vte", (object?)u.VerificationTokenExpiry ?? DBNull.Value);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -142,6 +147,39 @@ namespace WebProdavnica.DAL.Impl
             return cmd.ExecuteNonQuery() > 0;
         }
 
+        public User? GetByVerificationToken(string token)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.users WHERE verification_token=@token AND verification_token_expiry > GETUTCDATE()";
+            cmd.Parameters.AddWithValue("@token", token);
+            SqlDataReader r = cmd.ExecuteReader();
+            return r.Read() ? MapUser(r) : null;
+        }
+
+        public bool SetVerified(int userId)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE dbo.users SET is_verified=1, verification_token=NULL, verification_token_expiry=NULL WHERE user_id=@id";
+            cmd.Parameters.AddWithValue("@id", userId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public bool UpdateVerificationToken(int userId, string token, DateTime expiry)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE dbo.users SET verification_token=@token, verification_token_expiry=@expiry WHERE user_id=@id";
+            cmd.Parameters.AddWithValue("@token", token);
+            cmd.Parameters.AddWithValue("@expiry", expiry);
+            cmd.Parameters.AddWithValue("@id", userId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
         private static User MapUser(SqlDataReader r)
         {
             return new User
@@ -159,7 +197,10 @@ namespace WebProdavnica.DAL.Impl
                 GoogleId = r["google_id"] as string,
                 PasswordResetToken = r["password_reset_token"] as string,
                 PasswordResetTokenExpiry = r["password_reset_token_expiry"] as DateTime?,
-                ProfileImagePath = r["profile_image_path"] as string
+                ProfileImagePath = r["profile_image_path"] as string,
+                IsVerified = r["is_verified"] != DBNull.Value && (bool)r["is_verified"],
+                VerificationToken = r["verification_token"] as string,
+                VerificationTokenExpiry = r["verification_token_expiry"] as DateTime?
             };
         }
     }

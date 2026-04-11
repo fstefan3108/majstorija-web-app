@@ -20,6 +20,8 @@ import JobRequestPage from './pages/JobRequestPage';
 import FAQ from './pages/FAQ';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import EmailVerificationPending from './pages/EmailVerificationPending';
+import VerifyEmail from './pages/VerifyEmail';
 import ScrollToTop from './components/ScrollToTop';
 
 const GOOGLE_CLIENT_ID = "432202911287-rm1iq2ifogskv0t7d2n22rv9rpmu78e2.apps.googleusercontent.com";
@@ -53,6 +55,8 @@ function App() {
           <Route path="/faq" element={<FAQ />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email-pending" element={<EmailVerificationPending />} />
+          <Route path="/verify-email/confirm" element={<VerifyEmail />} />
         </Routes>
       </BrowserRouter>
     </GoogleOAuthProvider>

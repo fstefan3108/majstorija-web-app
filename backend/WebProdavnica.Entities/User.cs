@@ -18,6 +18,9 @@ public class User
     public string? GoogleId { get; set; }
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetTokenExpiry { get; set; }
+    public bool IsVerified { get; set; } = false;
+    public string? VerificationToken { get; set; }
+    public DateTime? VerificationTokenExpiry { get; set; }
     public string? ProfileImagePath { get; set; }
     public ICollection<JobOrder> JobOrders { get; set; } = new List<JobOrder>();
     public ICollection<Chat> Chats { get; set; } = new List<Chat>();

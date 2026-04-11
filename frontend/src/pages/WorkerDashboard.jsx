@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { MessageCircle, InboxIcon, Briefcase, History } from "lucide-react";
+import { MessageCircle, InboxIcon, Briefcase, History, CalendarDays } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import Header from "../components/Header";
@@ -10,6 +10,7 @@ import JobRequestModal from "../components/WorkerDashboard/JobRequestModal";
 import RequestsTab from "../components/WorkerDashboard/tabs/RequestsTab";
 import ScheduledTab from "../components/WorkerDashboard/tabs/ScheduledTab";
 import HistoryTab from "../components/WorkerDashboard/tabs/HistoryTab";
+import AvailabilityTab from "../components/WorkerDashboard/tabs/AvailabilityTab";
 
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -19,9 +20,10 @@ import { useAuth } from "../context/AuthContext";
 // ─────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "requests",  label: "Zahtevi za posao",  icon: InboxIcon  },
-  { id: "scheduled", label: "Zakazani poslovi",  icon: Briefcase  },
-  { id: "history",   label: "Evidencija poslova", icon: History   },
+  { id: "requests",     label: "Zahtevi za posao",  icon: InboxIcon    },
+  { id: "scheduled",   label: "Zakazani poslovi",   icon: Briefcase    },
+  { id: "history",     label: "Evidencija poslova", icon: History      },
+  { id: "availability",label: "Kalendar",           icon: CalendarDays },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -263,6 +265,7 @@ export default function WorkerDashboard() {
                   services={services}
                   onDelete={handleDelete}
                   isLoading={isLoading}
+                  craftsmanId={workerData?.craftsmanId}
                 />
               )}
               {activeTab === "history" && (
@@ -270,6 +273,9 @@ export default function WorkerDashboard() {
                   services={services}
                   isLoading={isLoading}
                 />
+              )}
+              {activeTab === "availability" && workerData && (
+                <AvailabilityTab craftsmanId={workerData.craftsmanId} />
               )}
             </div>
           </div>
