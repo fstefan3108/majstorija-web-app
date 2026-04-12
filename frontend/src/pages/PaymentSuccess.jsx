@@ -17,6 +17,12 @@ export default function PaymentSuccess() {
     || sessionStorage.getItem('pendingJobId');
 
   useEffect(() => {
+    if (state === 'success' && jobId) {
+      fetch(`${API_BASE}/api/payments/${jobId}/setup-chat`, { method: 'POST' }).catch(() => {});
+    }
+  }, [state]);
+
+  useEffect(() => {
     const canceled = searchParams.get('canceled');
     const hasError = searchParams.get('error');
 

@@ -174,12 +174,12 @@ export default function ProfileSettings() {
   };
 
   const toggleProfession = (val) => {
-    setCraftsmanForm(prev => ({
-      ...prev,
-      professions: prev.professions.includes(val)
-        ? prev.professions.filter(p => p !== val)
-        : [...prev.professions, val]
-    }));
+    setCraftsmanForm(prev => {
+      if (prev.professions.includes(val))
+        return { ...prev, professions: prev.professions.filter(p => p !== val) };
+      if (prev.professions.length >= 3) return prev; // max 3
+      return { ...prev, professions: [...prev.professions, val] };
+    });
   };
 
   const initials = user?.name
@@ -302,16 +302,26 @@ export default function ProfileSettings() {
             <form onSubmit={handleProfileSave} className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6 space-y-5">
               {/* Profesije */}
               <div>
-                <label className="flex items-center gap-2 text-gray-400 text-sm mb-3"><Briefcase className="w-4 h-4" /> Profesije</label>
+                <label className="flex items-center gap-2 text-gray-400 text-sm mb-3">
+                  <Briefcase className="w-4 h-4" /> Profesije
+                  <span className="text-gray-500 font-normal">(min. 1, max. 3)</span>
+                  <span className="ml-auto text-gray-400">{craftsmanForm.professions.length}/3</span>
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   {PROFESSIONS.map(p => {
                     const selected = craftsmanForm.professions.includes(p.value);
+                    const atMax = craftsmanForm.professions.length >= 3 && !selected;
                     return (
                       <button key={p.value} type="button" onClick={() => toggleProfession(p.value)}
+                        disabled={atMax}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition text-left ${
-                          selected ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:border-gray-400'
+                          selected
+                            ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                            : atMax
+                            ? 'bg-gray-700/30 border-gray-700 text-gray-600 cursor-not-allowed'
+                            : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:border-gray-400'
                         }`}>
-                        <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-blue-500 border-blue-500' : 'border-gray-500'}`}>
+                        <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-blue-500 border-blue-500' : atMax ? 'border-gray-600' : 'border-gray-500'}`}>
                           {selected && <span className="text-white text-xs leading-none">✓</span>}
                         </div>
                         {p.label}

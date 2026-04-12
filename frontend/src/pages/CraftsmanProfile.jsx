@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Clock, Star, Briefcase, Mail, Phone, DollarSign,
-  Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, MessageSquare
+  Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, MessageSquare, FileText
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -180,9 +180,17 @@ const CraftsmanProfile = () => {
 
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-8 mb-6">
             <div className="flex flex-col md:flex-row gap-6">
-              <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-4xl shadow-2xl flex-shrink-0">
-                {initials}
-              </div>
+              {craftsman.profileImagePath ? (
+                <img
+                  src={`${API_BASE}${craftsman.profileImagePath}`}
+                  alt={`${craftsman.firstName} ${craftsman.lastName}`}
+                  className="w-32 h-32 rounded-2xl object-cover shadow-2xl flex-shrink-0"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-4xl shadow-2xl flex-shrink-0">
+                  {initials}
+                </div>
+              )}
 
               <div className="flex-1">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-2">
@@ -191,7 +199,13 @@ const CraftsmanProfile = () => {
                   </h1>
                 </div>
 
-                <p className="text-blue-400 text-xl font-medium capitalize mb-4">{craftsman.profession}</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(craftsman.professions?.length > 0 ? craftsman.professions : craftsman.profession ? [craftsman.profession] : []).map((p, i) => (
+                    <span key={i} className="px-3 py-1 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-300 text-sm font-medium capitalize">
+                      {p}
+                    </span>
+                  ))}
+                </div>
                 
                 <div className="flex items-center gap-3 mb-6">
                   {reviews.length > 0 ? (
@@ -266,6 +280,40 @@ const CraftsmanProfile = () => {
               )}
             </div>
           </div>
+
+          {/* O meni — prikazuje se samo ako postoji opis ili professions */}
+          {(craftsman.workExperienceDescription || (craftsman.professions?.length > 0)) && (
+            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 mb-6">
+              <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                <FileText className="w-6 h-6 text-blue-400" />
+                O meni
+              </h2>
+
+              {craftsman.professions?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-gray-400 text-sm mb-2 flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5" /> Oblasti rada
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {craftsman.professions.map((p, i) => (
+                      <span key={i} className="px-3 py-1 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-300 text-sm capitalize">
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {craftsman.workExperienceDescription && (
+                <div>
+                  <p className="text-gray-400 text-sm mb-2">Radno iskustvo</p>
+                  <p className="text-gray-200 leading-relaxed whitespace-pre-line">
+                    {craftsman.workExperienceDescription}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 mb-6">
             <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">

@@ -37,6 +37,9 @@ namespace WebProdavnica.Controllers
         {
             try
             {
+                if (request.Professions.Count < 1 || request.Professions.Count > 3)
+                    return BadRequest(new { success = false, message = "Morate izabrati između 1 i 3 profesije." });
+
                 var result = _authService.RegisterCraftsman(request);
                 if (result == null)
                     return BadRequest(new { success = false, message = "Email već postoji ili registracija nije uspela" });

@@ -81,6 +81,7 @@ export default function Register() {
     if (current.includes(value)) {
       set('professions', current.filter(p => p !== value));
     } else {
+      if (current.length >= 3) return; // max 3 profesije
       set('professions', [...current, value]);
     }
   };
@@ -250,10 +251,14 @@ export default function Register() {
         const imgForm = new FormData();
         imgForm.append('image', formData.profileImage);
         try {
-          await fetch(`${API_BASE}/api/craftsmen/${data.userId}/profile-image`, {
+          const imgRes = await fetch(`${API_BASE}/api/craftsmen/${data.userId}/profile-image`, {
             method: 'POST',
             body: imgForm
           });
+          if (!imgRes.ok) {
+            const imgJson = await imgRes.json().catch(() => ({}));
+            console.warn('Slika nije uploadovana:', imgJson.message || imgRes.status);
+          }
         } catch (err) {
           console.warn('Slika nije uploadovana, nastaviće se bez nje:', err);
         }
@@ -491,16 +496,21 @@ export default function Register() {
                 <div>
                   <label className="block text-gray-300 mb-2 text-sm font-medium flex items-center gap-2">
                     <Briefcase className="w-4 h-4" /> Profesije
-                    <span className="text-gray-500 font-normal">(izaberite jednu ili više)</span>
+                    <span className="text-gray-500 font-normal">(min. 1, max. 3)</span>
+                    <span className="ml-auto text-gray-400 font-normal">{formData.professions.length}/3</span>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {PROFESSIONS.map(p => {
                       const selected = formData.professions.includes(p.value);
+                      const atMax = formData.professions.length >= 3 && !selected;
                       return (
                         <button key={p.value} type="button" onClick={() => toggleProfession(p.value)}
+                          disabled={atMax}
                           className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition text-left ${
                             selected
                               ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                              : atMax
+                              ? 'bg-gray-700/30 border-gray-700 text-gray-600 cursor-not-allowed'
                               : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:border-gray-400'
                           }`}>
                           {selected && <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />}

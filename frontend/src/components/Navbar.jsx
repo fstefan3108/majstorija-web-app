@@ -5,9 +5,12 @@ import Button from "../components/Button";
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
 
+const API_BASE = "http://localhost:5114";
+
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [profileImagePath, setProfileImagePath] = useState(null);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -17,6 +20,17 @@ export default function Navbar() {
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : '?';
+
+  useEffect(() => {
+    if (!user) { setProfileImagePath(null); return; }
+    const endpoint = isCraftsman
+      ? `${API_BASE}/api/craftsmen/${user.id}`
+      : `${API_BASE}/api/users/${user.id}`;
+    fetch(endpoint)
+      .then(r => r.json())
+      .then(json => setProfileImagePath(json.data?.profileImagePath ?? null))
+      .catch(() => setProfileImagePath(null));
+  }, [user?.id]);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -54,9 +68,14 @@ export default function Navbar() {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-full pl-1 pr-3 py-1 transition"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold">
-                  {initials}
-                </div>
+                {profileImagePath ? (
+                  <img src={`${API_BASE}${profileImagePath}`} alt={initials}
+                    className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold">
+                    {initials}
+                  </div>
+                )}
                 <span className="text-white text-sm font-medium max-w-[120px] truncate">{user.name}</span>
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -136,9 +155,14 @@ export default function Navbar() {
             {isLoggedIn ? (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 rounded-lg">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold">
-                    {initials}
-                  </div>
+                  {profileImagePath ? (
+                    <img src={`${API_BASE}${profileImagePath}`} alt={initials}
+                      className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold">
+                      {initials}
+                    </div>
+                  )}
                   <div>
                     <p className="text-white font-semibold text-sm">{user.name}</p>
                     <p className="text-gray-400 text-xs">{isCraftsman ? 'Majstor' : 'Korisnik'}</p>

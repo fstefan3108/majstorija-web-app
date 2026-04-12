@@ -87,6 +87,9 @@ namespace WebProdavnica.API.Controllers
                 if (craftsman == null)
                     return NotFound(new { success = false, message = "Majstor nije pronađen" });
 
+                if (request.Professions.Count < 1 || request.Professions.Count > 3)
+                    return BadRequest(new { success = false, message = "Morate izabrati između 1 i 3 profesije." });
+
                 craftsman.FirstName = request.FirstName;
                 craftsman.LastName = request.LastName;
                 craftsman.Email = request.Email;

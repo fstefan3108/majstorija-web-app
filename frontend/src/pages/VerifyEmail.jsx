@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react';
 import Header from '../components/Header';
@@ -18,8 +18,12 @@ const VerifyEmail = () => {
 
   const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
+  const hasRun = useRef(false);
 
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+
     if (!token || !email) {
       setStatus('error');
       setErrorMsg('Nevažeći verifikacioni link. Parametri nedostaju.');

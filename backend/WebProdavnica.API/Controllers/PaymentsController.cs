@@ -18,6 +18,8 @@ namespace WebProdavnica.API.Controllers
         private readonly ICraftsmanService _craftsmanService;
         private readonly INotificationService _notificationService;
         private readonly AllSecureClient _allSecure;
+        private readonly IJobRequestService _jobRequestService;
+        private readonly IChatService _chatService;
 
         public PaymentsController(
             IPaymentService paymentService,
@@ -26,7 +28,9 @@ namespace WebProdavnica.API.Controllers
             IUserService userService,
             ICraftsmanService craftsmanService,
             INotificationService notificationService,
-            AllSecureClient allSecure)
+            AllSecureClient allSecure,
+            IJobRequestService jobRequestService,
+            IChatService chatService)
         {
             _paymentService = paymentService;
             _cardTokenService = cardTokenService;
@@ -35,6 +39,8 @@ namespace WebProdavnica.API.Controllers
             _craftsmanService = craftsmanService;
             _notificationService = notificationService;
             _allSecure = allSecure;
+            _jobRequestService = jobRequestService;
+            _chatService = chatService;
         }
 
         // GET /api/payments/card-token/{userId}
@@ -241,6 +247,123 @@ namespace WebProdavnica.API.Controllers
             return Ok(new { success = true, refundedAmount = refundAmount, newStatus = newPaymentStatus });
         }
 
+        // POST /api/payments/{jobId}/cancel
+        // Korisnik otkazuje zakazani posao u roku od 24h od plaćanja.
+        // Vraća novac (void preauth ili refund capture) i šalje notifikacije.
+        [HttpPost("{jobId}/cancel")]
+        public async Task<IActionResult> Cancel(int jobId)
+        {
+            var job = _jobOrderService.Get(jobId);
+            if (job == null)
+                return NotFound(new { success = false, message = "Posao nije pronađen." });
+
+            if (!string.Equals(job.Status, "zakazano", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { success = false, message = "Samo zakazani poslovi mogu biti otkazani." });
+
+            // 24h check — koristimo CreatedAt iz linked JobRequest-a
+            if (job.JobRequestId.HasValue)
+            {
+                var jobRequest = _jobRequestService.Get(job.JobRequestId.Value);
+                if (jobRequest != null)
+                {
+                    var elapsed = DateTime.UtcNow - jobRequest.CreatedAt;
+                    if (elapsed.TotalHours > 24)
+                        return BadRequest(new { success = false, message = "Otkazivanje je moguće samo u roku od 24h od zakazivanja." });
+                }
+            }
+
+            var payments = _paymentService.GetByJob(jobId);
+            var payment = payments.LastOrDefault();
+            if (payment == null)
+                return NotFound(new { success = false, message = "Plaćanje nije pronađeno." });
+
+            AllSecureResult result;
+
+            if (payment.PaymentStatus == "Captured" && payment.CaptureTransactionId != null)
+            {
+                result = await _allSecure.RefundAsync(
+                    Guid.NewGuid().ToString("N"),
+                    payment.CaptureTransactionId,
+                    payment.Amount,
+                    payment.Currency ?? "RSD");
+            }
+            else if ((payment.PaymentStatus == "Preauthorized" || payment.PaymentStatus == "Pending")
+                     && payment.TransactionId != null)
+            {
+                result = await _allSecure.VoidAsync(
+                    Guid.NewGuid().ToString("N"),
+                    payment.TransactionId);
+            }
+            else
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = $"Plaćanje u statusu '{payment.PaymentStatus}' ne može biti refundovano.",
+                });
+            }
+
+            if (result.ReturnType != "FINISHED" || !result.IsSuccess)
+                return BadRequest(new { success = false, message = result.ErrorMessage ?? "Povraćaj novca nije uspeo." });
+
+            var newPaymentStatus = payment.PaymentStatus == "Captured" ? "Refunded" : "Voided";
+            _paymentService.UpdateStatus(jobId, newPaymentStatus);
+
+            job.Status = "Otkazano";
+            _jobOrderService.Update(job);
+
+            // Notifikacija za majstora
+            var craftsman = _craftsmanService.Get(job.CraftsmanId);
+            if (craftsman != null)
+            {
+                var dateStr = job.ScheduledDate.ToString("dd.MM.yyyy");
+                await _notificationService.SendAsync(new Notification
+                {
+                    RecipientId = job.CraftsmanId,
+                    RecipientType = "craftsman",
+                    Type = "job_cancelled",
+                    Title = "Posao otkazan",
+                    Message = $"Korisnik je otkazao posao \"{job.JobDescription}\" zakazan za {dateStr}. Novac je vraćen korisniku.",
+                    RelatedEntityId = jobId,
+                }, craftsman.Email ?? "");
+            }
+
+            // Notifikacija za korisnika
+            var usr = _userService.Get(job.UserId);
+            if (usr != null)
+            {
+                await _notificationService.SendAsync(new Notification
+                {
+                    RecipientId = job.UserId,
+                    RecipientType = "user",
+                    Type = "job_cancelled",
+                    Title = "Posao otkazan",
+                    Message = $"Vaš posao \"{job.JobDescription}\" je otkazan. Novac će biti vraćen na vašu karticu.",
+                    RelatedEntityId = jobId,
+                }, usr.Email ?? "");
+            }
+
+            return Ok(new { success = true, message = "Posao je otkazan i novac će biti vraćen.", refundedAmount = payment.Amount });
+        }
+
+        // POST /api/payments/{jobId}/setup-chat
+        // Frontend poziva ovo kada prikaže success stranicu — kreira sistem poruku i šalje notifikacije.
+        // Idempotentno: preskače ako sistem poruka već postoji (AllSecure callback je stigao pre toga).
+        [HttpPost("{jobId}/setup-chat")]
+        public async Task<IActionResult> SetupChat(int jobId)
+        {
+            var job = _jobOrderService.Get(jobId);
+            if (job == null)
+                return NotFound(new { success = false });
+
+            var existing = await _chatService.GetConversationAsync(job.UserId, job.CraftsmanId);
+            if (existing.Any(m => m.SenderType == "system"))
+                return Ok(new { success = true, alreadySetup = true });
+
+            await NotifyCraftsmanPaymentAsync(jobId);
+            return Ok(new { success = true });
+        }
+
         // POST /api/payments/callback/{jobId}
         // AllSecure calls this endpoint asynchronously after every transaction reaches its final state.
         // Must respond with HTTP 200 and body "OK" — otherwise AllSecure retries.
@@ -296,18 +419,50 @@ namespace WebProdavnica.API.Controllers
         {
             var job = _jobOrderService.Get(jobId);
             if (job == null) return;
+
             var craftsman = _craftsmanService.Get(job.CraftsmanId);
-            if (craftsman == null) return;
+            var usr = _userService.Get(job.UserId);
             var dateStr = job.ScheduledDate.ToString("dd.MM.yyyy");
-            await _notificationService.SendAsync(new Notification
+
+            // Notifikacija za majstora — posao zakazan
+            if (craftsman != null)
             {
-                RecipientId = job.CraftsmanId,
-                RecipientType = "craftsman",
-                Type = "job_confirmed",
-                Title = "Posao zakazan!",
-                Message = $"Korisnik je potvrdio i platio rezervaciju. Posao \"{job.JobDescription}\" zakazan za {dateStr}.",
-                RelatedEntityId = jobId,
-            }, craftsman.Email ?? "");
+                await _notificationService.SendAsync(new Notification
+                {
+                    RecipientId = job.CraftsmanId,
+                    RecipientType = "craftsman",
+                    Type = "job_confirmed",
+                    Title = "Posao zakazan!",
+                    Message = $"Korisnik je potvrdio i platio rezervaciju. Posao \"{job.JobDescription}\" zakazan za {dateStr}. " +
+                              $"Chat sa korisnikom biće dostupan nakon 24 sata.",
+                    RelatedEntityId = jobId,
+                }, craftsman.Email ?? "");
+            }
+
+            // Notifikacija za korisnika — posao zakazan + 24h info
+            if (usr != null)
+            {
+                await _notificationService.SendAsync(new Notification
+                {
+                    RecipientId = job.UserId,
+                    RecipientType = "user",
+                    Type = "job_confirmed",
+                    Title = "Rezervacija potvrđena!",
+                    Message = $"Vaš posao \"{job.JobDescription}\" za {dateStr} je uspešno zakazan. " +
+                              $"Chat sa majstorom biće dostupan nakon isteka 24-časovnog perioda za otkazivanje.",
+                    RelatedEntityId = jobId,
+                }, usr.Email ?? "");
+            }
+
+            // Kreiraj sistem poruku — otvara konverzaciju u chat-u za oba korisnika
+            await _chatService.SendMessageAsync(new Chat
+            {
+                UserId = job.UserId,
+                CraftsmanId = job.CraftsmanId,
+                SenderType = "system",
+                Message = $"Posao \"{job.JobDescription}\" je uspešno zakazan za {dateStr}. " +
+                           "Chat između vas biće dostupan nakon isteka 24-časovnog perioda za otkazivanje.",
+            });
         }
 
         private async Task HandlePreauthCallback(int jobId, AllSecureCallbackResult cb)

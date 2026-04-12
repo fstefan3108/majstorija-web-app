@@ -99,6 +99,7 @@ export default function UserDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [capturingId, setCapturingId] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const [requestActionId, setRequestActionId] = useState(null);
   const [reviewJobId, setReviewJobId] = useState(null);
 
@@ -213,6 +214,28 @@ export default function UserDashboard() {
     }
   };
 
+  const handleCancel = async (jobId) => {
+    if (!confirm('Da li ste sigurni da želite da otkažete posao? Novac će biti vraćen na vašu karticu.')) return;
+    setCancellingId(jobId);
+    try {
+      const res = await fetch(`${API_BASE}/api/payments/${jobId}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user?.accessToken}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchJobs();
+        alert('Posao je uspešno otkazan. Novac će biti vraćen na vašu karticu.');
+      } else {
+        alert(data.message || 'Greška pri otkazivanju posla.');
+      }
+    } catch (err) {
+      alert('Greška: ' + err.message);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const handleProfileUpdate = async (updatedData) => {
     try {
       const userUpdate = {
@@ -240,6 +263,7 @@ export default function UserDashboard() {
   };
 
   const pendingConfirmation = services.filter(s => s.status === 'Ceka potvrdu');
+  const scheduledJobs = services.filter(s => s.status?.toLowerCase() === 'zakazano');
 
   if (!userData) {
     return (
@@ -396,6 +420,50 @@ export default function UserDashboard() {
                     onCapture={handleCapture}
                     capturing={capturingId}
                   />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Zakazani poslovi — sa mogućnošću otkazivanja u roku od 24h */}
+          {scheduledJobs.length > 0 && (
+            <div className="mt-10 bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 lg:p-8 border border-blue-500/30">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                <h2 className="text-xl font-bold text-white">Zakazani poslovi</h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-semibold border border-blue-500/30">
+                  {scheduledJobs.length}
+                </span>
+              </div>
+              <p className="text-gray-400 text-sm mb-5">
+                Poslovi koje čekaju na realizaciju. Možete otkazati u roku od 24h od zakazivanja i novac će biti vraćen.
+              </p>
+              <div className="flex flex-col gap-3">
+                {scheduledJobs.map(service => (
+                  <div key={service.jobId} className="rounded-xl border border-blue-500/20 bg-blue-900/10 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-white font-semibold">#{service.jobId}</span>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-600/20 text-blue-400 border border-blue-500/40">
+                          Zakazano
+                        </span>
+                      </div>
+                      <p className="text-gray-300 text-sm truncate">{service.title || service.jobDescription || 'Bez naziva'}</p>
+                      <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(service.scheduledDate).toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </p>
+                      <p className="text-white font-bold text-base mt-1">{Number(service.totalPrice).toLocaleString()} RSD</p>
+                    </div>
+                    <button
+                      onClick={() => handleCancel(service.jobId)}
+                      disabled={cancellingId === service.jobId}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition text-sm font-medium disabled:opacity-50 flex-shrink-0"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      {cancellingId === service.jobId ? 'Otkazuje se...' : 'Otkaži'}
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

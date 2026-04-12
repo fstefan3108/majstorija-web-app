@@ -153,23 +153,25 @@ const Login = () => {
                 </div>
               </div>
 
-              {/* Google OAuth */}
-              <div>
-                <div className="flex justify-center">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setErrors(['Google prijava nije uspela'])}
-                    text="signin_with"
-                    shape="rectangular"
-                    theme="filled_black"
-                  />
+              {/* Google OAuth — samo za korisnike */}
+              {formData.userType === 'user' && (
+                <div>
+                  <div className="flex justify-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => setErrors(['Google prijava nije uspela'])}
+                      text="signin_with"
+                      shape="rectangular"
+                      theme="filled_black"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="flex-1 h-px bg-gray-700" />
+                    <span className="text-gray-500 text-xs">ili sa email/lozinkom</span>
+                    <div className="flex-1 h-px bg-gray-700" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 my-4">
-                  <div className="flex-1 h-px bg-gray-700" />
-                  <span className="text-gray-500 text-xs">ili sa email/lozinkom</span>
-                  <div className="flex-1 h-px bg-gray-700" />
-                </div>
-              </div>
+              )}
 
               {/* Email */}
               <div>

@@ -52,6 +52,9 @@ export function AuthProvider({ children }) {
   const login = (authResponse) => {
     localStorage.setItem('accessToken', authResponse.accessToken);
     localStorage.setItem('refreshToken', authResponse.refreshToken);
+    // Brišemo stare vrednosti da ne bi pregazile podatke novog korisnika
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
     try {
       const userData = extractUserFromToken(authResponse.accessToken);
       // Čuvamo ime i email u localStorage

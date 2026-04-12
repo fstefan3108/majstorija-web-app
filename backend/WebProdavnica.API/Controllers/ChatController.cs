@@ -9,10 +9,50 @@ namespace WebProdavnica.API.Controllers
     public class ChatController : ControllerBase
     {
         private readonly IChatService _chatService;
+        private readonly IJobOrderService _jobOrderService;
+        private readonly IJobRequestService _jobRequestService;
 
-        public ChatController(IChatService chatService)
+        public ChatController(
+            IChatService chatService,
+            IJobOrderService jobOrderService,
+            IJobRequestService jobRequestService)
         {
             _chatService = chatService;
+            _jobOrderService = jobOrderService;
+            _jobRequestService = jobRequestService;
+        }
+
+        // GET: api/chat/can-chat/{userId}/{craftsmanId}
+        // Proverava da li je 24h refund period istekao za najnoviji zajednički posao.
+        [HttpGet("can-chat/{userId}/{craftsmanId}")]
+        public IActionResult CanChat(int userId, int craftsmanId)
+        {
+            var job = _jobOrderService.GetAll()
+                .Where(j => j.UserId == userId
+                         && j.CraftsmanId == craftsmanId
+                         && !string.Equals(j.Status, "Otkazano", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(j => j.JobId)
+                .FirstOrDefault();
+
+            if (job == null)
+                return Ok(new { canChat = false, reason = "no_job", unlocksAt = (DateTime?)null });
+
+            if (!job.JobRequestId.HasValue)
+                return Ok(new { canChat = true, unlocksAt = (DateTime?)null });
+
+            var jobRequest = _jobRequestService.Get(job.JobRequestId.Value);
+            if (jobRequest == null)
+                return Ok(new { canChat = true, unlocksAt = (DateTime?)null });
+
+            var unlocksAt = jobRequest.CreatedAt.AddHours(24);
+            var canChat = DateTime.UtcNow >= unlocksAt;
+
+            return Ok(new
+            {
+                canChat,
+                reason = canChat ? "ok" : "refund_window",
+                unlocksAt = canChat ? (DateTime?)null : unlocksAt,
+            });
         }
 
         // GET: api/chat/user/{userId} — sve poruke za usera
@@ -43,6 +83,24 @@ namespace WebProdavnica.API.Controllers
         [HttpPost]
         public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request)
         {
+            // Provjeri 24h window — ista logika kao CanChat
+            var job = _jobOrderService.GetAll()
+                .Where(j => j.UserId == request.UserId
+                         && j.CraftsmanId == request.CraftsmanId
+                         && !string.Equals(j.Status, "Otkazano", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(j => j.JobId)
+                .FirstOrDefault();
+
+            if (job == null)
+                return BadRequest(new { success = false, message = "Ne možete slati poruke bez aktivnog posla." });
+
+            if (job.JobRequestId.HasValue)
+            {
+                var jobRequest = _jobRequestService.Get(job.JobRequestId.Value);
+                if (jobRequest != null && DateTime.UtcNow < jobRequest.CreatedAt.AddHours(24))
+                    return BadRequest(new { success = false, message = "Chat je dostupan tek nakon isteka 24-časovnog perioda od zakazivanja." });
+            }
+
             var chat = new Chat
             {
                 Message = request.Message,

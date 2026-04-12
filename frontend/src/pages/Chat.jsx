@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Search, Send, User, Loader2, X, MapPin, Briefcase, Star } from "lucide-react";
+import { ArrowLeft, Search, Send, User, Loader2, X, MapPin, Briefcase, Star, Clock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../context/AuthContext";
@@ -157,6 +157,7 @@ export default function Chat() {
 
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
+  const [chatStatus, setChatStatus] = useState(null); // { canChat, unlocksAt }
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -312,6 +313,26 @@ export default function Chat() {
     return () => clearInterval(pollRef.current);
   }, [activeConv?.key]);
 
+  useEffect(() => {
+    if (!activeConv) { setChatStatus(null); return; }
+    const checkCanChat = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/chat/can-chat/${activeConv.userId}/${activeConv.craftsmanId}`,
+          { headers }
+        );
+        const json = await res.json();
+        setChatStatus(json);
+      } catch {
+        setChatStatus({ canChat: true }); // fallback — ne blokiraj ako API nije dostupan
+      }
+    };
+    checkCanChat();
+    // Osvežavaj svakih 60s dok je konverzacija otvorena (za slučaj da istekne window)
+    const statusInterval = setInterval(checkCanChat, 60_000);
+    return () => clearInterval(statusInterval);
+  }, [activeConv?.key]);
+
   const refreshActiveChat = async (userId, craftsmanId, key) => {
     try {
       const res = await fetch(
@@ -436,6 +457,10 @@ export default function Chat() {
       if (date !== currentDate) {
         groups.push({ type: "date", label: date });
         currentDate = date;
+      }
+      if (msg.senderType === "system") {
+        groups.push({ type: "system", msg });
+        return;
       }
       const isMe = msg.senderType
         ? msg.senderType === (isCraftsman ? "craftsman" : "user")
@@ -584,6 +609,13 @@ export default function Chat() {
                         <span className="text-gray-400 text-xs">{item.label}</span>
                       </div>
                     </div>
+                  ) : item.type === "system" ? (
+                    <div key={item.msg.chatId} className="flex justify-center my-3">
+                      <div className="flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2.5 max-w-[80%]">
+                        <Clock className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-blue-300 text-xs leading-relaxed">{item.msg.message}</p>
+                      </div>
+                    </div>
                   ) : (
                     <div key={item.msg.chatId} className={`flex ${item.isMe ? "justify-end" : "justify-start"} items-end gap-2 mb-1`}>
                       {!item.isMe && (
@@ -608,25 +640,48 @@ export default function Chat() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-4 bg-[#1e2028] border-t border-gray-700 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={message}
-                    onChange={e => setMessage(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
-                    placeholder="Napišite poruku..."
-                    className="flex-1 bg-[#262431] text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!message.trim() || sending}
-                    className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                  >
-                    {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                  </button>
+              {chatStatus && !chatStatus.canChat ? (
+                <div className="p-4 bg-[#1e2028] border-t border-gray-700 flex-shrink-0">
+                  <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3">
+                    <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-yellow-300 text-sm font-medium">
+                        {chatStatus.reason === "no_job"
+                          ? "Chat je dostupan samo sa majstorima sa kojima imate aktivan posao."
+                          : "Chat će biti dostupan nakon isteka 24-časovnog perioda za otkazivanje."}
+                      </p>
+                      {chatStatus.unlocksAt && (
+                        <p className="text-yellow-500 text-xs mt-0.5">
+                          Dostupno od: {new Date(chatStatus.unlocksAt).toLocaleString("sr-RS", {
+                            day: "2-digit", month: "2-digit", year: "numeric",
+                            hour: "2-digit", minute: "2-digit"
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 bg-[#1e2028] border-t border-gray-700 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={message}
+                      onChange={e => setMessage(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
+                      placeholder="Napišite poruku..."
+                      className="flex-1 bg-[#262431] text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!message.trim() || sending}
+                      className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    >
+                      {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
