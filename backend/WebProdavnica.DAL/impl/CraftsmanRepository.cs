@@ -304,7 +304,7 @@ namespace WebProdavnica.DAL.Impl
             conn.Open();
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                SELECT DISTINCT
+                SELECT
                     c.craftsman_id, c.first_name, c.last_name, c.email, c.phone,
                     c.location, c.profession, c.experience, c.hourly_rate, c.working_hours,
                     c.password_hash, c.refresh_token, c.refresh_token_expiry, c.average_rating, c.rating_count,
@@ -312,9 +312,13 @@ namespace WebProdavnica.DAL.Impl
                     c.password_reset_token, c.password_reset_token_expiry,
                     c.is_verified, c.verification_token, c.verification_token_expiry
                 FROM dbo.craftsmen c
-                JOIN dbo.craftsman_subcategories cs ON cs.craftsman_id = c.craftsman_id
-                JOIN dbo.subcategories s ON s.subcategory_id = cs.subcategory_id
-                WHERE s.slug = @slug AND c.is_verified = 1";
+                WHERE c.is_verified = 1
+                  AND c.craftsman_id IN (
+                      SELECT DISTINCT cs.craftsman_id
+                      FROM dbo.craftsman_subcategories cs
+                      JOIN dbo.subcategories s ON s.subcategory_id = cs.subcategory_id
+                      WHERE s.slug = @slug
+                  )";
             cmd.Parameters.AddWithValue("@slug", slug);
             var r = cmd.ExecuteReader();
             while (r.Read()) list.Add(MapCraftsman(r));
