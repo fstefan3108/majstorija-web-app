@@ -12,5 +12,6 @@ namespace WebProdavnica.BusinessLayer.Abstract
         bool MarkRead(int notificationId);
         bool MarkAllRead(int recipientId, string recipientType);
         bool Delete(int notificationId);
+        bool JobAlreadyNotified(int jobId, string type = "job_confirmed");
     }
 }

@@ -1,145 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Search, Send, User, Loader2, X, MapPin, Briefcase, Star, Clock } from "lucide-react";
+import { ArrowLeft, Search, Send, User, Loader2, MapPin, Clock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5114";
 
-// MODAL ZA NOVU PORUKU
-const NewMessageModal = ({ onClose, onSelect, headers }) => {
-  const [craftsmen, setCraftsmen] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/craftsmen`, { headers });
-        const json = await res.json();
-        setCraftsmen(json.data || json || []);
-      } catch (err) {
-        console.error("Greška pri učitavanju majstora:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-  }, []);
-
-  const filtered = craftsmen.filter(c =>
-    `${c.firstName} ${c.lastName} ${c.profession} ${c.location}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
-
-  const initials = (c) =>
-    `${c.firstName?.[0] ?? ""}${c.lastName?.[0] ?? ""}`.toUpperCase();
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[#1a1d26] border border-gray-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
-          <h2 className="text-white font-bold text-lg">Nova poruka</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="p-3 border-b border-gray-700 flex-shrink-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Pretraži majstore..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              autoFocus
-              className="w-full bg-[#262431] text-white pl-10 pr-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Lista majstora */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-7 h-7 text-blue-500 animate-spin" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-500 text-sm">
-              <User className="w-10 h-10 mb-2 opacity-30" />
-              Nema rezultata
-            </div>
-          ) : (
-            filtered.map(c => (
-              <div
-                key={c.craftsmanId}
-                onClick={() => onSelect(c)}
-                className="flex items-center gap-3 p-4 border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer transition"
-              >
-                {/* Avatar */}
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                  {initials(c)}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-semibold">
-                    {c.firstName} {c.lastName}
-                  </p>
-                  <p className="text-blue-400 text-xs capitalize">{c.profession}</p>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {c.location && (
-                      <span className="flex items-center gap-1 text-gray-500 text-xs">
-                        <MapPin className="w-3 h-3" />
-                        {c.location}
-                      </span>
-                    )}
-                    {c.experience != null && (
-                      <span className="flex items-center gap-1 text-gray-500 text-xs">
-                        <Briefcase className="w-3 h-3" />
-                        {c.experience} god.
-                      </span>
-                    )}
-                    {c.averageRating != null && (
-                      <span className="flex items-center gap-1 text-yellow-400 text-xs">
-                        <Star className="w-3 h-3 fill-yellow-400" />
-                        {c.averageRating.toFixed(1)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Cena */}
-                <div className="text-right flex-shrink-0">
-                  <p className="text-white text-sm font-bold">{c.hourlyRate}</p>
-                  <p className="text-gray-500 text-xs">RSD/h</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// MAIN CHAT KOMPONENTA
 export default function Chat() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCraftsmanId = parseInt(searchParams.get("craftsmanId")) || null;
-  const initialCraftsmanName = searchParams.get("craftsmanName") || null;
 
   const getFromJWT = (claim) => {
     try {
@@ -157,12 +28,11 @@ export default function Chat() {
 
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
-  const [chatStatus, setChatStatus] = useState(null); // { canChat, unlocksAt }
+  const [chatStatus, setChatStatus] = useState(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showNewMessage, setShowNewMessage] = useState(false);
   const messagesEndRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -177,14 +47,11 @@ export default function Chat() {
     return () => clearInterval(sidebarPoll);
   }, [myId]);
 
+  // Ako se navigira na /chat?craftsmanId=X — otvori tu konverzaciju ako postoji
   useEffect(() => {
     if (!initialCraftsmanId || loading) return;
     const existing = conversations.find(c => c.craftsmanId === initialCraftsmanId);
-    if (existing) {
-      handleSelectConv(existing);
-    } else {
-      openNewConversation(initialCraftsmanId, initialCraftsmanName);
-    }
+    if (existing) handleSelectConv(existing);
   }, [loading, initialCraftsmanId]);
 
   const fetchConversations = async () => {
@@ -257,54 +124,6 @@ export default function Chat() {
     }
   };
 
-  const openNewConversation = async (craftsmanId, craftsmanName) => {
-    let name = craftsmanName || `Majstor #${craftsmanId}`;
-    try {
-      const r = await fetch(`${API_BASE}/api/craftsmen/${craftsmanId}`, { headers });
-      const j = await r.json();
-      if (j.success) name = `${j.data.firstName} ${j.data.lastName}`;
-    } catch {}
-
-    const newConv = {
-      key: `c${craftsmanId}`,
-      userId: myId,
-      craftsmanId,
-      name,
-      messages: [],
-      lastMessage: "",
-      lastTime: null,
-      unreadCount: 0,
-    };
-    setConversations(prev => {
-      const exists = prev.find(c => c.key === newConv.key);
-      return exists ? prev : [newConv, ...prev];
-    });
-    setActiveConv(newConv);
-  };
-
-  // Kada user izabere majstora iz modala
-  const handleSelectNewCraftsman = (craftsman) => {
-    setShowNewMessage(false);
-    const key = `c${craftsman.craftsmanId}`;
-    const existing = conversations.find(c => c.key === key);
-    if (existing) {
-      handleSelectConv(existing);
-    } else {
-      const newConv = {
-        key,
-        userId: myId,
-        craftsmanId: craftsman.craftsmanId,
-        name: `${craftsman.firstName} ${craftsman.lastName}`,
-        messages: [],
-        lastMessage: "",
-        lastTime: null,
-        unreadCount: 0,
-      };
-      setConversations(prev => [newConv, ...prev.filter(c => c.key !== key)]);
-      setActiveConv(newConv);
-    }
-  };
-
   useEffect(() => {
     if (!activeConv) return;
     pollRef.current = setInterval(() => {
@@ -324,11 +143,10 @@ export default function Chat() {
         const json = await res.json();
         setChatStatus(json);
       } catch {
-        setChatStatus({ canChat: true }); // fallback — ne blokiraj ako API nije dostupan
+        setChatStatus({ canChat: true });
       }
     };
     checkCanChat();
-    // Osvežavaj svakih 60s dok je konverzacija otvorena (za slučaj da istekne window)
     const statusInterval = setInterval(checkCanChat, 60_000);
     return () => clearInterval(statusInterval);
   }, [activeConv?.key]);
@@ -483,15 +301,6 @@ export default function Chat() {
     <div className="h-screen bg-[#121418] flex flex-col overflow-hidden">
       <Header />
 
-      {/* Modal za novu poruku */}
-      {showNewMessage && (
-        <NewMessageModal
-          headers={headers}
-          onClose={() => setShowNewMessage(false)}
-          onSelect={handleSelectNewCraftsman}
-        />
-      )}
-
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <aside className="w-full md:w-80 bg-[#1a1d26] border-r border-gray-700 flex flex-col flex-shrink-0">
@@ -563,7 +372,7 @@ export default function Chat() {
                         </div>
                       </div>
                       <p className={`text-xs truncate ${conv.unreadCount > 0 ? "text-gray-200 font-medium" : "text-gray-400"}`}>
-                        {conv.lastMessage || "Započnite razgovor"}
+                        {conv.lastMessage}
                       </p>
                     </div>
                   </div>
@@ -571,18 +380,6 @@ export default function Chat() {
               ))
             )}
           </div>
-
-          {/* Nova poruka dugme - samo za usere */}
-          {!isCraftsman && (
-            <div className="p-4 border-t border-gray-700 flex-shrink-0">
-              <button
-                onClick={() => setShowNewMessage(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition text-sm font-medium"
-              >
-                + Nova poruka
-              </button>
-            </div>
-          )}
         </aside>
 
         {/* Chat panel */}
@@ -686,9 +483,9 @@ export default function Chat() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
               <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center">
-                <Send className="w-8 h-8 opacity-30" />
+                <MapPin className="w-8 h-8 opacity-30" />
               </div>
-              <p className="text-sm">Izaberite konverzaciju ili pošaljite novu poruku</p>
+              <p className="text-sm">Izaberite konverzaciju</p>
             </div>
           )}
         </div>

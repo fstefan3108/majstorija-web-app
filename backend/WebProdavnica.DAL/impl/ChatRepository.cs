@@ -93,6 +93,19 @@ namespace WebProdavnica.DAL.Impl
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task DeleteConversationAsync(int userId, int craftsmanId)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            await conn.OpenAsync();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                DELETE FROM chats
+                WHERE user_id = @UserId AND craftsman_id = @CraftsmanId";
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@CraftsmanId", craftsmanId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private static Chat MapChat(SqlDataReader r) => new Chat
         {
             ChatId = r.GetInt32(r.GetOrdinal("chat_id")),

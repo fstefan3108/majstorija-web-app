@@ -348,7 +348,7 @@ namespace WebProdavnica.API.Controllers
 
         // POST /api/payments/{jobId}/setup-chat
         // Frontend poziva ovo kada prikaže success stranicu — kreira sistem poruku i šalje notifikacije.
-        // Idempotentno: preskače ako sistem poruka već postoji (AllSecure callback je stigao pre toga).
+        // Idempotentno po poslu: preskače ako je job_confirmed notifikacija za ovaj jobId već poslata.
         [HttpPost("{jobId}/setup-chat")]
         public async Task<IActionResult> SetupChat(int jobId)
         {
@@ -356,8 +356,7 @@ namespace WebProdavnica.API.Controllers
             if (job == null)
                 return NotFound(new { success = false });
 
-            var existing = await _chatService.GetConversationAsync(job.UserId, job.CraftsmanId);
-            if (existing.Any(m => m.SenderType == "system"))
+            if (_notificationService.JobAlreadyNotified(jobId, "job_confirmed"))
                 return Ok(new { success = true, alreadySetup = true });
 
             await NotifyCraftsmanPaymentAsync(jobId);

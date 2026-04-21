@@ -10,5 +10,6 @@ namespace WebProdavnica.DAL.Abstract
         bool MarkRead(int notificationId);
         bool MarkAllRead(int recipientId, string recipientType);
         bool Delete(int notificationId);
+        bool ExistsForJob(int jobId, string type);
     }
 }

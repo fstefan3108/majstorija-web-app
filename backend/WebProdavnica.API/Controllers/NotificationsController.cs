@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using WebProdavnica.API.Services;
 using WebProdavnica.BusinessLayer.Abstract;
 using WebProdavnica.BusinessLayer.Impl;
 
@@ -9,10 +10,12 @@ namespace WebProdavnica.API.Controllers
     public class NotificationsController : ControllerBase
     {
         private readonly INotificationService _service;
+        private readonly SseConnectionManager _sse;
 
-        public NotificationsController(INotificationService service)
+        public NotificationsController(INotificationService service, SseConnectionManager sse)
         {
             _service = service;
+            _sse = sse;
         }
 
         // GET /api/notifications?recipientId=5&recipientType=user&limit=50
@@ -56,11 +59,57 @@ namespace WebProdavnica.API.Controllers
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
-            // pretpostavljamo da INotificationRepository ima Delete(int id)
             bool ok = _service.Delete(id);
             return ok
                 ? Ok(new { success = true })
                 : NotFound(new { success = false });
+        }
+
+        // GET /api/notifications/stream?recipientId=5&recipientType=user
+        [HttpGet("stream")]
+        public async Task Stream([FromQuery] int recipientId, [FromQuery] string recipientType, CancellationToken ct)
+        {
+            if (recipientType != "user" && recipientType != "craftsman")
+            {
+                Response.StatusCode = 400;
+                return;
+            }
+
+            Response.Headers["Content-Type"]  = "text/event-stream";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["X-Accel-Buffering"] = "no";
+
+            var (connectionId, reader) = _sse.Connect(recipientId, recipientType);
+            try
+            {
+                using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+                var heartbeatTask = Task.Run(async () =>
+                {
+                    while (!ct.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            await heartbeatTimer.WaitForNextTickAsync(ct);
+                            await Response.WriteAsync(": heartbeat\n\n", ct);
+                            await Response.Body.FlushAsync(ct);
+                        }
+                        catch { break; }
+                    }
+                }, ct);
+
+                await foreach (var json in reader.ReadAllAsync(ct))
+                {
+                    await Response.WriteAsync($"data: {json}\n\n", ct);
+                    await Response.Body.FlushAsync(ct);
+                }
+
+                await heartbeatTask;
+            }
+            catch (OperationCanceledException) { }
+            finally
+            {
+                _sse.Disconnect(recipientId, recipientType, connectionId);
+            }
         }
     }
 }

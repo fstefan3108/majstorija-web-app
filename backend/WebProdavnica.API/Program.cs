@@ -53,6 +53,9 @@ builder.Services.AddScoped<ICardTokenService, CardTokenService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IJobRequestService, JobRequestService>();
+builder.Services.AddSingleton<WebProdavnica.API.Services.SseConnectionManager>();
+builder.Services.AddSingleton<WebProdavnica.BusinessLayer.Abstract.ISsePusher>(sp =>
+    sp.GetRequiredService<WebProdavnica.API.Services.SseConnectionManager>());
 
 // CORS za React
 builder.Services.AddCors(options =>

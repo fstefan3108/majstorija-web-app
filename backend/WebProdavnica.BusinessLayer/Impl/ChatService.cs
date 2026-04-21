@@ -27,5 +27,8 @@ namespace WebProdavnica.BusinessLayer.Impl
 
         public Task MarkAsReadAsync(int userId, int craftsmanId, string readerRole)
             => _chatRepository.MarkAsReadAsync(userId, craftsmanId, readerRole);
+
+        public Task DeleteConversationAsync(int userId, int craftsmanId)
+            => _chatRepository.DeleteConversationAsync(userId, craftsmanId);
     }
 }

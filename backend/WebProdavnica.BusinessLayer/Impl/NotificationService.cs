@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -12,26 +13,48 @@ namespace WebProdavnica.BusinessLayer.Impl
     {
         private readonly INotificationRepository _repo;
         private readonly SmtpSettings _smtp;
+        private readonly ISsePusher _sse;
 
-        public NotificationService(INotificationRepository repo, SmtpSettings smtp)
+        public NotificationService(INotificationRepository repo, SmtpSettings smtp, ISsePusher sse)
         {
             _repo = repo;
             _smtp = smtp;
+            _sse = sse;
         }
 
         public async Task SendAsync(Notification notification, string recipientEmail)
         {
             // 1. Sacuvaj u bazi
-            _repo.Add(notification);
+            int savedId = _repo.Add(notification);
+            notification.NotificationId = savedId;
 
-            // 2. Posalji email (ne blokira u slucaju greske - samo loguj)
+            // 2. Push via SSE ako je korisnik online
+            try
+            {
+                var json = JsonSerializer.Serialize(new
+                {
+                    notificationId  = notification.NotificationId,
+                    type            = notification.Type,
+                    title           = notification.Title,
+                    message         = notification.Message,
+                    relatedEntityId = notification.RelatedEntityId,
+                    isRead          = false,
+                    createdAt       = DateTime.UtcNow,
+                });
+                await _sse.PushAsync(notification.RecipientId, notification.RecipientType, json);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SSE] Push greška: {ex.Message}");
+            }
+
+            // 3. Posalji email (ne blokira u slucaju greske)
             try
             {
                 await SendEmailAsync(recipientEmail, notification.Title, notification.Message);
             }
             catch (Exception ex)
             {
-                // Email greska ne sme da blokira osnovni flow
                 Console.Error.WriteLine($"[Email] Greška pri slanju na {recipientEmail}: {ex.Message}");
             }
         }
@@ -49,6 +72,9 @@ namespace WebProdavnica.BusinessLayer.Impl
             => _repo.MarkAllRead(recipientId, recipientType);
         public bool Delete(int notificationId)
             => _repo.Delete(notificationId);
+
+        public bool JobAlreadyNotified(int jobId, string type = "job_confirmed")
+            => _repo.ExistsForJob(jobId, type);
 
         // ── Private ────────────────────────────────────────────────────────────
 

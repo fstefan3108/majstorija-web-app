@@ -14,13 +14,26 @@ namespace WebProdavnica.API.Controllers
         private readonly ICraftsmanService _craftsmanService;
         private readonly IReviewService _reviewService;
         private readonly IJobRequestService _jobRequestService;
+        private readonly INotificationService _notificationService;
+        private readonly IUserService _userService;
+        private readonly IChatService _chatService;
 
-        public JobOrdersController(IJobOrderService jobOrderService, ICraftsmanService craftsmanService, IReviewService reviewService, IJobRequestService jobRequestService)
+        public JobOrdersController(
+            IJobOrderService jobOrderService,
+            ICraftsmanService craftsmanService,
+            IReviewService reviewService,
+            IJobRequestService jobRequestService,
+            INotificationService notificationService,
+            IUserService userService,
+            IChatService chatService)
         {
             _jobOrderService = jobOrderService;
             _craftsmanService = craftsmanService;
             _reviewService = reviewService;
             _jobRequestService = jobRequestService;
+            _notificationService = notificationService;
+            _userService = userService;
+            _chatService = chatService;
         }
 
         // POST: api/joborders
@@ -350,12 +363,28 @@ namespace WebProdavnica.API.Controllers
         public IActionResult Start(int id)
         {
             var job = _jobOrderService.Get(id);
-            // TESTING: uklonjen datum check
-            // if (job != null && job.ScheduledDate.Date != DateTime.UtcNow.Date)
-            //     return BadRequest(new { success = false, message = $"Timer se može pokrenuti samo na zakazani dan ({job.ScheduledDate:dd.MM.yyyy})." });
-
             var ok = _jobOrderService.StartTimer(id);
-            return ok ? Ok(new { success = true }) : BadRequest(new { success = false, message = "Timer nije mogao biti pokrenut." });
+            if (!ok) return BadRequest(new { success = false, message = "Timer nije mogao biti pokrenut." });
+
+            if (job != null)
+            {
+                var usr = _userService.Get(job.UserId);
+                var craftsman = _craftsmanService.Get(job.CraftsmanId);
+                if (usr != null && craftsman != null)
+                {
+                    _ = _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId   = job.UserId,
+                        RecipientType = "user",
+                        Type          = "job_started",
+                        Title         = "Majstor je započeo posao",
+                        Message       = $"Majstor {craftsman.FirstName} {craftsman.LastName} je upravo započeo posao \"{job.JobDescription}\".",
+                        RelatedEntityId = job.JobId,
+                    }, usr.Email ?? "");
+                }
+            }
+
+            return Ok(new { success = true });
         }
 
         // POST /api/joborders/{id}/pause
@@ -376,11 +405,36 @@ namespace WebProdavnica.API.Controllers
 
         // POST /api/joborders/{id}/finish
         [HttpPost("{id}/finish")]
-        public IActionResult Finish(int id)
+        public async Task<IActionResult> Finish(int id)
         {
             try
             {
+                var job = _jobOrderService.Get(id);
                 var result = _jobOrderService.FinishTimer(id);
+
+                if (job != null)
+                {
+                    // Obriši chat između korisnika i majstora
+                    await _chatService.DeleteConversationAsync(job.UserId, job.CraftsmanId);
+
+                    // Notifikacija korisniku
+                    var usr = _userService.Get(job.UserId);
+                    var craftsman = _craftsmanService.Get(job.CraftsmanId);
+                    if (usr != null && craftsman != null)
+                    {
+                        _ = _notificationService.SendAsync(new Notification
+                        {
+                            RecipientId   = job.UserId,
+                            RecipientType = "user",
+                            Type          = "job_finished",
+                            Title         = "Majstor je završio posao",
+                            Message       = $"Majstor {craftsman.FirstName} {craftsman.LastName} je završio posao \"{job.JobDescription}\". " +
+                                            $"Ukupno vreme: {result.FormattedDuration}. Potvrdite završetak kako biste odobrili naplatu.",
+                            RelatedEntityId = job.JobId,
+                        }, usr.Email ?? "");
+                    }
+                }
+
                 return Ok(new
                 {
                     success = true,

@@ -13,8 +13,11 @@ export default function PaymentSuccess() {
   const [state, setState] = useState('loading'); // 'loading' | 'success' | 'canceled' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
 
-  const jobId = searchParams.get('jobId')
-    || sessionStorage.getItem('pendingJobId');
+  // Capture jobId once at mount — sessionStorage gets cleared during pollStatus
+  // before setState('success') triggers re-render, so plain const would become null.
+  const [jobId] = useState(
+    () => searchParams.get('jobId') || sessionStorage.getItem('pendingJobId')
+  );
 
   useEffect(() => {
     if (state === 'success' && jobId) {

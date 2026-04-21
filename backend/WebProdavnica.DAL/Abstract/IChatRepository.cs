@@ -9,5 +9,6 @@ namespace WebProdavnica.DAL.Abstract
         Task<IEnumerable<Chat>> GetConversationAsync(int userId, int craftsmanId);
         Task<Chat> SendMessageAsync(Chat chat);
         Task MarkAsReadAsync(int userId, int craftsmanId, string readerRole);
+        Task DeleteConversationAsync(int userId, int craftsmanId);
     }
 }

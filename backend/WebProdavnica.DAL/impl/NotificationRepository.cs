@@ -107,5 +107,18 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@id", notificationId);
             return cmd.ExecuteNonQuery() > 0;
         }
+
+        public bool ExistsForJob(int jobId, string type)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(1) FROM dbo.notifications
+                WHERE related_entity_id = @jobId AND type = @type";
+            cmd.Parameters.AddWithValue("@jobId", jobId);
+            cmd.Parameters.AddWithValue("@type", type);
+            return (int)cmd.ExecuteScalar() > 0;
+        }
     }
 }
