@@ -37,8 +37,8 @@ namespace WebProdavnica.Controllers
         {
             try
             {
-                if (request.Professions.Count < 1 || request.Professions.Count > 3)
-                    return BadRequest(new { success = false, message = "Morate izabrati između 1 i 3 profesije." });
+                if (request.Subcategories.Count == 0)
+                    return BadRequest(new { success = false, message = "Izaberite barem jednu oblast rada." });
 
                 var result = _authService.RegisterCraftsman(request);
                 if (result == null)

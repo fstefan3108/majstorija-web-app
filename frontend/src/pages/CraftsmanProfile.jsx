@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, MapPin, Clock, Star, Briefcase, Mail, Phone, DollarSign,
+  ArrowLeft, MapPin, Clock, Star, Briefcase, DollarSign,
   Calendar, AlertCircle, Loader2, CheckCircle, XCircle, CalendarClock, MessageSquare, FileText
 } from 'lucide-react';
 import Header from "../components/Header";
@@ -252,27 +252,11 @@ const CraftsmanProfile = () => {
             </div>
 
             <div className="mt-6 pt-6 border-t border-gray-700 flex flex-wrap items-center gap-4">
-              <a
-                href={`mailto:${craftsman.email}`}
-                className="flex items-center gap-2 text-gray-300 hover:text-blue-400 transition"
-              >
-                <Mail className="w-5 h-5" />
-                {craftsman.email}
-              </a>
-              <span className="text-gray-700">·</span>
-              <a
-                href={`tel:${craftsman.phone}`}
-                className="flex items-center gap-2 text-gray-300 hover:text-blue-400 transition"
-              >
-                <Phone className="w-5 h-5" />
-                {craftsman.phone}
-              </a>
-
               {/* Dugme "Kontaktiraj" — prikazuje se samo korisnicima (ne majstorima) */}
               {user && user.role !== 'Craftsman' && (
                 <button
                   onClick={() => setShowContactModal(true)}
-                  className="ml-auto flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/20"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/20"
                 >
                   <MessageSquare className="w-4 h-4" />
                   Kontaktiraj

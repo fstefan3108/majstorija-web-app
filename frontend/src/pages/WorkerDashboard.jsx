@@ -23,7 +23,7 @@ const TABS = [
   { id: "requests",     label: "Zahtevi za posao",  icon: InboxIcon    },
   { id: "scheduled",   label: "Zakazani poslovi",   icon: Briefcase    },
   { id: "history",     label: "Evidencija poslova", icon: History      },
-  { id: "availability",label: "Kalendar",           icon: CalendarDays },
+  { id: "availability",label: "Raspored",            icon: CalendarDays },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ export default function WorkerDashboard() {
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 overflow-hidden">
 
             {/* Tab navigacija */}
-            <div className="flex border-b border-gray-700">
+            <div className="flex border-b border-gray-700 overflow-x-auto scrollbar-none">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -234,7 +234,7 @@ export default function WorkerDashboard() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold transition whitespace-nowrap border-b-2 -mb-px
+                    className={`flex items-center gap-2 px-4 sm:px-6 py-4 text-sm font-semibold transition whitespace-nowrap border-b-2 -mb-px flex-shrink-0
                       ${isActive
                         ? "border-blue-500 text-blue-400 bg-blue-500/5"
                         : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-700/30"

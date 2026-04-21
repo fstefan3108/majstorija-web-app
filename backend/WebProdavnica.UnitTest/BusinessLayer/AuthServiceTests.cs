@@ -36,7 +36,8 @@ namespace WebProdavnica.UnitTest.Services
                 _mockUserRepo.Object,
                 _mockCraftsmanRepo.Object,
                 _mockJwtService.Object,
-                _jwtSettings
+                _jwtSettings,
+                new WebProdavnica.Entities.Configuration.SmtpSettings()
             );
         }
 
@@ -406,7 +407,7 @@ namespace WebProdavnica.UnitTest.Services
                 Email = "nikola@test.com",
                 Phone = "987654321",
                 Location = "Novi Sad",
-                Profession = "Stolar",
+                Professions = new List<string> { "Stolar" },
                 Experience = 5,
                 HourlyRate = 2000,
                 WorkingHours = "8-16",
@@ -476,7 +477,7 @@ namespace WebProdavnica.UnitTest.Services
                 LastName = "Craftsman",
                 Email = "existing@test.com",
                 Password = "password123",
-                Profession = "Test",
+                Professions = new List<string> { "Test" },
                 Experience = 1,
                 HourlyRate = 1000,
                 WorkingHours = "9-17"
@@ -502,7 +503,7 @@ namespace WebProdavnica.UnitTest.Services
                 LastName = "Craftsman",
                 Email = "test@test.com",
                 Password = "plaintext_password",
-                Profession = "Test",
+                Professions = new List<string> { "Test" },
                 Experience = 1,
                 HourlyRate = 1000,
                 WorkingHours = "9-17"

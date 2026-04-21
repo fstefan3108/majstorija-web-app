@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-export default function GridCard({ image, heading, slug }) {
+export default function GridCard({ image, heading, slug, to }) {
     return (
         <div className="bg-white rounded-xl overflow-hidden hover:shadow-xl transition-shadow duration-300">
             <div className="w-full h-48 overflow-hidden">
@@ -15,7 +15,7 @@ export default function GridCard({ image, heading, slug }) {
                     {heading}
                 </h3>
                 <Link
-                    to={`/craftsmen/${slug}`}
+                    to={to || `/craftsmen/${slug}`}
                     className="inline-flex items-center gap-2 text-[#2324fe] font-semibold hover:gap-3 transition-all duration-200 group"
                 >
                     <span>Pronađi Majstora</span>

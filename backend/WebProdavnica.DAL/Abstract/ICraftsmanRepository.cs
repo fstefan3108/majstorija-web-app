@@ -17,5 +17,11 @@ namespace WebProdavnica.DAL.Abstract
         bool UpdateVerificationToken(int craftsmanId, string token, DateTime expiry);
         bool Delete(int id);
         bool UpdateRating(int craftsmanId);
+
+        // Podkategorije
+        bool SaveSubcategories(int craftsmanId, List<string> subcategoryIds);
+        List<string> GetSubcategories(int craftsmanId);
+        List<string> GetCategories(int craftsmanId);
+        List<Craftsman> GetBySubcategorySlug(string slug);
     }
 }

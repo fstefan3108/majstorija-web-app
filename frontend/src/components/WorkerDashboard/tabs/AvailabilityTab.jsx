@@ -148,12 +148,12 @@ export default function AvailabilityTab({ craftsmanId }) {
                 {/* Toggle */}
                 <button
                   onClick={() => updateDay(dow, "isAvailable", !day.isAvailable)}
-                  className={`w-10 h-5 rounded-full relative transition-colors ${
+                  className={`w-11 h-6 rounded-full relative transition-colors overflow-hidden flex-shrink-0 ${
                     day.isAvailable ? "bg-green-500" : "bg-gray-600"
                   }`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                    day.isAvailable ? "translate-x-5" : "translate-x-0.5"
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                    day.isAvailable ? "translate-x-6" : "translate-x-1"
                   }`} />
                 </button>
 
@@ -191,7 +191,7 @@ export default function AvailabilityTab({ craftsmanId }) {
 
       {/* ── Sekcija 2: Pregled kalendara ──────────────────────────────────── */}
       <div>
-        <h3 className="text-white font-semibold text-lg mb-4">Moj kalendar</h3>
+        <h3 className="text-white font-semibold text-lg mb-4">Moj raspored</h3>
         <CalendarGrid
           weeklySchedule={schedule}
           jobSlots={jobSlots}

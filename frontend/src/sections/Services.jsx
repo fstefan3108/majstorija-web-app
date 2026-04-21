@@ -19,15 +19,15 @@ export default function Services() {
           <p className="text-blue-400/70 mt-3 text-lg">Pronađite stručnjaka za svaki posao</p>
         </div>
         <div className="gap-6 grid md:grid-cols-3">
-          <Card image={plumber} heading="Vodoinstalater" slug="plumbers" />
-          <Card image={workerTwo} heading="Električar" slug="electricians" />
-          <Card image={workerThree} heading="Majstor za sve" slug="handymen" />
-          <Card image={workerFour} heading="Moler" slug="painters" />
-          <Card image={workerFive} heading="Montaža nameštaja" slug="furniture-assembly" />
-          <Card image={workerSix} heading="Klima uređaji" slug="air-conditioning" />
-          <Card image={workerSeven} heading="Montaža TV-a" slug="tv-mounting" />
-          <Card image={workerEight} heading="Automehaničar" slug="auto-mechanics" />
-          <Card image={workerNine} heading="Opšta pomoć" slug="general-help" />
+          <Card image={plumber} heading="Vodoinstalater" to="/browse/majstori/vodoinstalater" />
+          <Card image={workerTwo} heading="Električar" to="/browse/majstori/elektricar" />
+          <Card image={workerThree} heading="Majstor za sve" to="/browse/sitne-popravke/sitne-popravke" />
+          <Card image={workerFour} heading="Moler" to="/browse/zavrsni-radovi/moler" />
+          <Card image={workerFive} heading="Montaža nameštaja" to="/browse/namestaj-montaza/montaza-namestaja" />
+          <Card image={workerSix} heading="Klima uređaji" to="/browse/majstori/serviser-klima" />
+          <Card image={workerSeven} heading="Montaža TV-a" to="/browse/sitne-popravke/montaza-tv" />
+          <Card image={workerEight} heading="Automehaničar" to="/browse" />
+          <Card image={workerNine} heading="Opšta pomoć" to="/browse" />
         </div>
       </div>
     </main>

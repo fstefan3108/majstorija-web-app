@@ -66,5 +66,18 @@ namespace WebProdavnica.BusinessLayer.Impl
 
             return all.OrderByDescending(c => GetAverageRating(c.CraftsmanId) ?? 0).ToList();
         }
+
+        // ── Podkategorije ─────────────────────────────────────────────────────────
+        public bool SaveSubcategories(int craftsmanId, List<string> subcategoryIds) =>
+            _craftsmanRepository.SaveSubcategories(craftsmanId, subcategoryIds);
+
+        public List<string> GetSubcategories(int craftsmanId) =>
+            _craftsmanRepository.GetSubcategories(craftsmanId);
+
+        public List<string> GetCategories(int craftsmanId) =>
+            _craftsmanRepository.GetCategories(craftsmanId);
+
+        public List<Craftsman> GetBySubcategorySlug(string slug) =>
+            _craftsmanRepository.GetBySubcategorySlug(slug);
     }
 }

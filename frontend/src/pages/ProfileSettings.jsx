@@ -1,25 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
   User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff,
-  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText
+  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from '../context/AuthContext';
+import { CATEGORIES } from '../constants/categories';
 
 const API_BASE = "http://localhost:5114";
-
-const PROFESSIONS = [
-  { label: 'Vodoinstalater',      value: 'plumber' },
-  { label: 'Električar',          value: 'electrician' },
-  { label: 'Zanatlija',           value: 'handyman' },
-  { label: 'Sklapanje nameštaja', value: 'furniture assembly' },
-  { label: 'Klima uređaj',        value: 'air conditioning' },
-  { label: 'Moler',               value: 'painter' },
-  { label: 'Postavljanje TV-a',   value: 'tv mounting' },
-  { label: 'Auto mehaničar',      value: 'auto mechanic' },
-  { label: 'Opšta pomoć',         value: 'general help' },
-];
+const MAX_CATEGORIES = 5;
 
 export default function ProfileSettings() {
   const { user, updateUser } = useAuth();
@@ -40,9 +30,11 @@ export default function ProfileSettings() {
   });
 
   const [craftsmanForm, setCraftsmanForm] = useState({
-    professions: [], experience: 0, hourlyRate: 0,
+    selectedCategories: [], selectedSubcategories: [],
+    experience: 0, hourlyRate: 0,
     workingHours: '', workExperienceDescription: '',
   });
+  const [openCategories, setOpenCategories] = useState([]);
 
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: '', newPassword: '', confirmPassword: '',
@@ -74,13 +66,19 @@ export default function ProfileSettings() {
           });
 
           if (isCraftsman) {
+            const savedSubs = d.subcategories || [];
+            const inferredCats = CATEGORIES
+              .filter(c => c.subcategories.some(s => savedSubs.includes(s.id)))
+              .map(c => c.id);
             setCraftsmanForm({
-              professions: d.professions || (d.profession ? [d.profession] : []),
+              selectedCategories: d.categories || inferredCats,
+              selectedSubcategories: savedSubs,
               experience: d.experience || 0,
               hourlyRate: d.hourlyRate || 0,
               workingHours: d.workingHours || '',
               workExperienceDescription: d.workExperienceDescription || '',
             });
+            setOpenCategories(d.categories || inferredCats);
           }
         }
       } catch (err) {
@@ -108,7 +106,12 @@ export default function ProfileSettings() {
         endpoint = `${API_BASE}/api/craftsmen/${user.id}/profile`;
         body = {
           ...profileForm,
-          ...craftsmanForm,
+          experience: craftsmanForm.experience,
+          hourlyRate: craftsmanForm.hourlyRate,
+          workingHours: craftsmanForm.workingHours,
+          workExperienceDescription: craftsmanForm.workExperienceDescription,
+          categories: craftsmanForm.selectedCategories,
+          subcategories: craftsmanForm.selectedSubcategories,
         };
       } else {
         endpoint = `${API_BASE}/api/users/${user.id}/profile`;
@@ -173,13 +176,38 @@ export default function ProfileSettings() {
     }
   };
 
-  const toggleProfession = (val) => {
+  const toggleCategory = (catId) => {
     setCraftsmanForm(prev => {
-      if (prev.professions.includes(val))
-        return { ...prev, professions: prev.professions.filter(p => p !== val) };
-      if (prev.professions.length >= 3) return prev; // max 3
-      return { ...prev, professions: [...prev.professions, val] };
+      if (prev.selectedCategories.includes(catId)) {
+        const cat = CATEGORIES.find(c => c.id === catId);
+        const subIds = cat?.subcategories.map(s => s.id) || [];
+        setOpenCategories(o => o.filter(c => c !== catId));
+        return {
+          ...prev,
+          selectedCategories: prev.selectedCategories.filter(c => c !== catId),
+          selectedSubcategories: prev.selectedSubcategories.filter(s => !subIds.includes(s)),
+        };
+      }
+      if (prev.selectedCategories.length >= MAX_CATEGORIES) return prev;
+      setOpenCategories(o => [...o, catId]);
+      return { ...prev, selectedCategories: [...prev.selectedCategories, catId] };
     });
+  };
+
+  const toggleSubcategory = (subId) => {
+    setCraftsmanForm(prev => {
+      if (prev.selectedSubcategories.includes(subId)) {
+        if (prev.selectedSubcategories.length <= 1) return prev;
+        return { ...prev, selectedSubcategories: prev.selectedSubcategories.filter(s => s !== subId) };
+      }
+      return { ...prev, selectedSubcategories: [...prev.selectedSubcategories, subId] };
+    });
+  };
+
+  const toggleCategoryOpen = (catId) => {
+    setOpenCategories(prev =>
+      prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
+    );
   };
 
   const initials = user?.name
@@ -300,32 +328,78 @@ export default function ProfileSettings() {
           {/* ─── Tab: Profesionalne informacije (samo majstori) ─────────────── */}
           {activeTab === 'professional' && isCraftsman && (
             <form onSubmit={handleProfileSave} className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6 space-y-5">
-              {/* Profesije */}
+              {/* Kategorije i podkategorije */}
               <div>
-                <label className="flex items-center gap-2 text-gray-400 text-sm mb-3">
-                  <Briefcase className="w-4 h-4" /> Profesije
-                  <span className="text-gray-500 font-normal">(min. 1, max. 3)</span>
-                  <span className="ml-auto text-gray-400">{craftsmanForm.professions.length}/3</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {PROFESSIONS.map(p => {
-                    const selected = craftsmanForm.professions.includes(p.value);
-                    const atMax = craftsmanForm.professions.length >= 3 && !selected;
+                <div className="flex items-center gap-2 mb-3">
+                  <Briefcase className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-400 text-sm">Oblasti rada</span>
+                  <span className="text-gray-500 text-sm font-normal">(max. {MAX_CATEGORIES} kategorije)</span>
+                  <span className="ml-auto text-gray-400 text-sm">
+                    {craftsmanForm.selectedCategories.length}/{MAX_CATEGORIES}
+                    {craftsmanForm.selectedSubcategories.length > 0 && ` · ${craftsmanForm.selectedSubcategories.length} usluga`}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {CATEGORIES.map(cat => {
+                    const isCatSelected = craftsmanForm.selectedCategories.includes(cat.id);
+                    const isOpen = openCategories.includes(cat.id);
+                    const atCatMax = craftsmanForm.selectedCategories.length >= MAX_CATEGORIES && !isCatSelected;
+                    const selectedSubs = cat.subcategories.filter(s => craftsmanForm.selectedSubcategories.includes(s.id));
+
                     return (
-                      <button key={p.value} type="button" onClick={() => toggleProfession(p.value)}
-                        disabled={atMax}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition text-left ${
-                          selected
-                            ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                            : atMax
-                            ? 'bg-gray-700/30 border-gray-700 text-gray-600 cursor-not-allowed'
-                            : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:border-gray-400'
-                        }`}>
-                        <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-blue-500 border-blue-500' : atMax ? 'border-gray-600' : 'border-gray-500'}`}>
-                          {selected && <span className="text-white text-xs leading-none">✓</span>}
+                      <div key={cat.id} className={`rounded-xl border transition-all ${isCatSelected ? cat.borderColor : 'border-gray-700'} overflow-hidden`}>
+                        <div className={`flex items-center gap-3 px-4 py-3 ${isCatSelected ? cat.bgColor : 'bg-gray-800/30'}`}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCategory(cat.id)}
+                            disabled={atCatMax}
+                            className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition ${
+                              isCatSelected ? 'bg-blue-500 border-blue-500' : atCatMax ? 'border-gray-600 cursor-not-allowed' : 'border-gray-500 hover:border-gray-300'
+                            }`}
+                          >
+                            {isCatSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                          </button>
+                          <span className="text-lg">{cat.emoji}</span>
+                          <span className={`flex-1 text-sm font-semibold ${isCatSelected ? 'text-white' : atCatMax ? 'text-gray-600' : 'text-gray-300'}`}>
+                            {cat.label}
+                          </span>
+                          {isCatSelected && selectedSubs.length > 0 && (
+                            <span className={`text-xs font-medium ${cat.textColor}`}>{selectedSubs.length} odabrano</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => isCatSelected ? toggleCategoryOpen(cat.id) : toggleCategory(cat.id)}
+                            disabled={atCatMax && !isCatSelected}
+                            className="text-gray-400 hover:text-white transition p-0.5"
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
-                        {p.label}
-                      </button>
+
+                        {isOpen && isCatSelected && (
+                          <div className="px-4 pb-3 pt-2 grid grid-cols-2 gap-1.5 border-t border-gray-700/50">
+                            {cat.subcategories.map(sub => {
+                              const isSubSelected = craftsmanForm.selectedSubcategories.includes(sub.id);
+                              return (
+                                <button
+                                  key={sub.id}
+                                  type="button"
+                                  onClick={() => toggleSubcategory(sub.id)}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition text-left ${
+                                    isSubSelected
+                                      ? `${cat.bgColor} ${cat.textColor} border ${cat.borderColor}`
+                                      : 'bg-gray-700/40 text-gray-400 border border-gray-700 hover:border-gray-500 hover:text-gray-200'
+                                  }`}
+                                >
+                                  {isSubSelected ? <CheckCircle className="w-3 h-3 flex-shrink-0" /> : <div className="w-3 h-3 flex-shrink-0" />}
+                                  <span className="truncate">{sub.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
