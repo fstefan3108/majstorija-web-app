@@ -5,6 +5,9 @@ import ContactUs from './pages/ContactUs';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import BrowseTasks from './pages/BrowseTasks';
+import BrowseCategories from './pages/BrowseCategories';
+import BrowseSubcategories from './pages/BrowseSubcategories';
+import BrowseCraftsmen from './pages/BrowseCraftsmen';
 import AboutUs from './pages/AboutUs';
 import CraftsmenByCategory from './pages/CraftsmenByCategory';
 import Chat from './pages/Chat';
@@ -38,6 +41,9 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/browse-tasks" element={<BrowseTasks />} />
+          <Route path="/browse" element={<BrowseCategories />} />
+          <Route path="/browse/:categorySlug" element={<BrowseSubcategories />} />
+          <Route path="/browse/:categorySlug/:subcategorySlug" element={<BrowseCraftsmen />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/workers/dashboard" element={<Dashboard />} />
           <Route path="/users/dashboard" element={<Dashboard />} />

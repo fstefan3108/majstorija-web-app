@@ -330,10 +330,15 @@ namespace WebProdavnica.API.Controllers
             if (job == null) return NotFound(new { success = false });
 
             var state = _jobOrderService.GetTimerState(id);
+            var title = job.JobRequestId.HasValue
+                ? _jobRequestService.Get(job.JobRequestId.Value)?.Title
+                : null;
+
             return Ok(new
             {
                 jobId = job.JobId,
                 status = job.Status,
+                title,
                 jobDescription = job.JobDescription,
                 hourlyRate = job.HourlyRate,
                 estimatedHours = job.EstimatedHours,

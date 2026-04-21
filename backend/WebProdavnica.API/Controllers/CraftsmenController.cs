@@ -19,11 +19,14 @@ namespace WebProdavnica.API.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetAll()
+        public IActionResult GetAll([FromQuery] string? subcategory)
         {
             try
             {
-                var craftsmen = _craftsmanService.GetAll();
+                var craftsmen = string.IsNullOrWhiteSpace(subcategory)
+                    ? _craftsmanService.GetAll()
+                    : _craftsmanService.GetBySubcategorySlug(subcategory);
+
                 return Ok(new { success = true, data = craftsmen, count = craftsmen.Count });
             }
             catch (Exception ex)
@@ -41,7 +44,34 @@ namespace WebProdavnica.API.Controllers
                 if (craftsman == null)
                     return NotFound(new { success = false, message = $"Zanatlija sa ID {id} nije pronađen" });
 
-                return Ok(new { success = true, data = craftsman });
+                var subcategories = _craftsmanService.GetSubcategories(id);
+                var categories = _craftsmanService.GetCategories(id);
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        craftsman.CraftsmanId,
+                        craftsman.FirstName,
+                        craftsman.LastName,
+                        craftsman.Email,
+                        craftsman.Phone,
+                        craftsman.Location,
+                        craftsman.Profession,
+                        craftsman.Professions,
+                        craftsman.Experience,
+                        craftsman.HourlyRate,
+                        craftsman.WorkingHours,
+                        craftsman.WorkExperienceDescription,
+                        craftsman.AverageRating,
+                        craftsman.RatingCount,
+                        craftsman.ProfileImagePath,
+                        craftsman.IsVerified,
+                        subcategories,
+                        categories,
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -87,22 +117,22 @@ namespace WebProdavnica.API.Controllers
                 if (craftsman == null)
                     return NotFound(new { success = false, message = "Majstor nije pronađen" });
 
-                if (request.Professions.Count < 1 || request.Professions.Count > 3)
-                    return BadRequest(new { success = false, message = "Morate izabrati između 1 i 3 profesije." });
-
                 craftsman.FirstName = request.FirstName;
                 craftsman.LastName = request.LastName;
                 craftsman.Email = request.Email;
                 craftsman.Phone = request.Phone;
                 craftsman.Location = request.Location;
-                craftsman.Professions = request.Professions;
-                craftsman.Profession = request.Professions.FirstOrDefault();
                 craftsman.Experience = request.Experience;
                 craftsman.HourlyRate = request.HourlyRate;
                 craftsman.WorkingHours = request.WorkingHours;
                 craftsman.WorkExperienceDescription = request.WorkExperienceDescription;
 
                 bool success = _craftsmanService.Update(craftsman);
+
+                // Sačuvaj podkategorije ako su poslate
+                if (success && request.Subcategories.Count > 0)
+                    _craftsmanService.SaveSubcategories(id, request.Subcategories);
+
                 if (success)
                     return Ok(new { success = true, message = "Profil uspešno ažuriran" });
 

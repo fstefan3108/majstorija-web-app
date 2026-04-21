@@ -66,9 +66,12 @@ namespace WebProdavnica.Entities.DTOs
         [StringLength(100, MinimumLength = 2, ErrorMessage = "Lokacija mora imati između 2 i 100 karaktera")]
         public string Location { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Izaberite barem jednu profesiju")]
-        [MinLength(1, ErrorMessage = "Izaberite barem jednu profesiju")]
+        // Staro polje — opciono za backward compat
         public List<string> Professions { get; set; } = new();
+
+        // Nova polja — kategorije i podkategorije
+        public List<string> Categories { get; set; } = new();
+        public List<string> Subcategories { get; set; } = new();
 
         [Range(0, 60, ErrorMessage = "Iskustvo mora biti između 0 i 60 godina")]
         public int Experience { get; set; }

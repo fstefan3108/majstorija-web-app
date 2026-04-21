@@ -2,27 +2,17 @@ import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Briefcase, Clock,
-  Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText
+  Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText, ChevronDown
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from '../context/AuthContext';
+import { CATEGORIES } from '../constants/categories';
 
 const API_BASE = "http://localhost:5114";
-
-const PROFESSIONS = [
-  { label: 'Vodoinstalater',      value: 'plumber' },
-  { label: 'Električar',          value: 'electrician' },
-  { label: 'Zanatlija',           value: 'handyman' },
-  { label: 'Sklapanje nameštaja', value: 'furniture assembly' },
-  { label: 'Klima uređaj',        value: 'air conditioning' },
-  { label: 'Moler',               value: 'painter' },
-  { label: 'Postavljanje TV-a',   value: 'tv mounting' },
-  { label: 'Auto mehaničar',      value: 'auto mechanic' },
-  { label: 'Opšta pomoć',         value: 'general help' },
-];
+const MAX_CATEGORIES = 5;
 
 const normalizePhone = (phone) => {
   let p = phone.replace(/[\s\-]/g, '');
@@ -52,13 +42,17 @@ export default function Register() {
     firstName: '', lastName: '', email: '', phone: '',
     password: '', confirmPassword: '', location: '',
     agreeToTerms: false,
-    // Majstor
-    professions: [],
+    // Majstor — nove kategorije/podkategorije
+    selectedCategories: [],   // IDs kategorija (max 5)
+    selectedSubcategories: [], // IDs podkategorija (neograničeno)
     workExperienceDescription: '',
     experience: '', hourlyRate: '', workingHours: '',
     profileImage: null, profileImagePreview: null,
     googleId: null,
   });
+
+  // Koji category accordioni su otvoreni
+  const [openCategories, setOpenCategories] = useState([]);
 
   const isWorker = formData.userType === 'craftsman';
 
@@ -76,14 +70,36 @@ export default function Register() {
     if (formData.phone) set('phone', normalizePhone(formData.phone));
   };
 
-  const toggleProfession = (value) => {
-    const current = formData.professions;
-    if (current.includes(value)) {
-      set('professions', current.filter(p => p !== value));
+  const toggleCategory = (catId) => {
+    const cats = formData.selectedCategories;
+    if (cats.includes(catId)) {
+      // Deselektuj kategoriju i ukloni sve njene podkategorije
+      const cat = CATEGORIES.find(c => c.id === catId);
+      const subIds = cat?.subcategories.map(s => s.id) || [];
+      set('selectedCategories', cats.filter(c => c !== catId));
+      set('selectedSubcategories', formData.selectedSubcategories.filter(s => !subIds.includes(s)));
+      setOpenCategories(prev => prev.filter(c => c !== catId));
     } else {
-      if (current.length >= 3) return; // max 3 profesije
-      set('professions', [...current, value]);
+      if (cats.length >= MAX_CATEGORIES) return;
+      set('selectedCategories', [...cats, catId]);
+      setOpenCategories(prev => [...prev, catId]);
     }
+  };
+
+  const toggleSubcategory = (subId) => {
+    const subs = formData.selectedSubcategories;
+    if (subs.includes(subId)) {
+      if (subs.length <= 1) return; // min 1 podkategorija ukupno
+      set('selectedSubcategories', subs.filter(s => s !== subId));
+    } else {
+      set('selectedSubcategories', [...subs, subId]);
+    }
+  };
+
+  const toggleCategoryOpen = (catId) => {
+    setOpenCategories(prev =>
+      prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
+    );
   };
 
   const handleImageChange = (e) => {
@@ -111,8 +127,11 @@ export default function Register() {
   // ─── Validacija Step 1 ────────────────────────────────────────────────────
   const validateStep1 = () => {
     const errs = {};
+    const nameRegex = /^[\p{L}\s'\-]+$/u;
     if (!formData.firstName.trim()) errs.firstName = 'Ime je obavezno';
+    else if (!nameRegex.test(formData.firstName.trim())) errs.firstName = 'Ime sme sadržati samo slova';
     if (!formData.lastName.trim()) errs.lastName = 'Prezime je obavezno';
+    else if (!nameRegex.test(formData.lastName.trim())) errs.lastName = 'Prezime sme sadržati samo slova';
     if (!formData.email.trim()) errs.email = 'Email je obavezan';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Email nije u ispravnom formatu';
     if (!formData.phone.trim()) errs.phone = 'Telefon je obavezan';
@@ -132,7 +151,7 @@ export default function Register() {
   // ─── Validacija Step 2 ────────────────────────────────────────────────────
   const validateStep2 = () => {
     const errs = {};
-    if (formData.professions.length === 0) errs.professions = 'Izaberite barem jednu profesiju';
+    if (formData.selectedSubcategories.length === 0) errs.subcategories = 'Izaberite barem jednu podkategoriju';
     if (!formData.experience.toString().trim()) errs.experience = 'Iskustvo je obavezno';
     if (!formData.hourlyRate.toString().trim()) errs.hourlyRate = 'Satnica je obavezna';
     if (!formData.workingHours.trim()) errs.workingHours = 'Radno vreme je obavezno';
@@ -207,7 +226,8 @@ export default function Register() {
           phone: normalizePhone(formData.phone),
           password: formData.password,
           location: formData.location,
-          professions: formData.professions,
+          subcategories: formData.selectedSubcategories,
+          categories: formData.selectedCategories,
           experience: parseInt(formData.experience) || 0,
           hourlyRate: parseFloat(formData.hourlyRate) || 0,
           workingHours: formData.workingHours,
@@ -492,35 +512,94 @@ export default function Register() {
               <div className="space-y-5">
                 <div className="text-center text-gray-400 text-xs mb-2">Korak 2 od 2 — Profesionalne informacije</div>
 
-                {/* Profesije — multi-select */}
+                {/* Kategorije i podkategorije */}
                 <div>
-                  <label className="block text-gray-300 mb-2 text-sm font-medium flex items-center gap-2">
-                    <Briefcase className="w-4 h-4" /> Profesije
-                    <span className="text-gray-500 font-normal">(min. 1, max. 3)</span>
-                    <span className="ml-auto text-gray-400 font-normal">{formData.professions.length}/3</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PROFESSIONS.map(p => {
-                      const selected = formData.professions.includes(p.value);
-                      const atMax = formData.professions.length >= 3 && !selected;
+                  <div className="flex items-center gap-2 mb-3">
+                    <Briefcase className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-300 text-sm font-medium">Oblasti rada</span>
+                    <span className="text-gray-500 text-sm font-normal">(max. {MAX_CATEGORIES} kategorije)</span>
+                    <span className="ml-auto text-gray-400 text-sm">
+                      {formData.selectedCategories.length}/{MAX_CATEGORIES} kategorija
+                      {formData.selectedSubcategories.length > 0 && ` · ${formData.selectedSubcategories.length} usluga`}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {CATEGORIES.map(cat => {
+                      const isCatSelected = formData.selectedCategories.includes(cat.id);
+                      const isOpen = openCategories.includes(cat.id);
+                      const atCatMax = formData.selectedCategories.length >= MAX_CATEGORIES && !isCatSelected;
+                      const selectedSubs = cat.subcategories.filter(s => formData.selectedSubcategories.includes(s.id));
+
                       return (
-                        <button key={p.value} type="button" onClick={() => toggleProfession(p.value)}
-                          disabled={atMax}
-                          className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition text-left ${
-                            selected
-                              ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                              : atMax
-                              ? 'bg-gray-700/30 border-gray-700 text-gray-600 cursor-not-allowed'
-                              : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:border-gray-400'
-                          }`}>
-                          {selected && <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />}
-                          {!selected && <div className="w-3.5 h-3.5 flex-shrink-0" />}
-                          {p.label}
-                        </button>
+                        <div key={cat.id} className={`rounded-xl border transition-all ${isCatSelected ? cat.borderColor : 'border-gray-700'} overflow-hidden`}>
+                          {/* Kategorija header */}
+                          <div className={`flex items-center gap-3 px-4 py-3 ${isCatSelected ? cat.bgColor : 'bg-gray-800/30'}`}>
+                            <button
+                              type="button"
+                              onClick={() => toggleCategory(cat.id)}
+                              disabled={atCatMax}
+                              className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition ${
+                                isCatSelected
+                                  ? 'bg-blue-500 border-blue-500'
+                                  : atCatMax
+                                  ? 'border-gray-600 cursor-not-allowed'
+                                  : 'border-gray-500 hover:border-gray-300'
+                              }`}
+                            >
+                              {isCatSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                            </button>
+
+                            <span className="text-lg">{cat.emoji}</span>
+                            <span className={`flex-1 text-sm font-semibold ${isCatSelected ? 'text-white' : atCatMax ? 'text-gray-600' : 'text-gray-300'}`}>
+                              {cat.label}
+                            </span>
+
+                            {isCatSelected && selectedSubs.length > 0 && (
+                              <span className={`text-xs font-medium ${cat.textColor}`}>
+                                {selectedSubs.length} odabrano
+                              </span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => isCatSelected ? toggleCategoryOpen(cat.id) : toggleCategory(cat.id)}
+                              disabled={atCatMax && !isCatSelected}
+                              className="text-gray-400 hover:text-white transition p-0.5"
+                            >
+                              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                          </div>
+
+                          {/* Podkategorije */}
+                          {isOpen && isCatSelected && (
+                            <div className="px-4 pb-3 pt-2 grid grid-cols-2 gap-1.5 border-t border-gray-700/50">
+                              {cat.subcategories.map(sub => {
+                                const isSubSelected = formData.selectedSubcategories.includes(sub.id);
+                                return (
+                                  <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={() => toggleSubcategory(sub.id)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition text-left ${
+                                      isSubSelected
+                                        ? `${cat.bgColor} ${cat.textColor} border ${cat.borderColor}`
+                                        : 'bg-gray-700/40 text-gray-400 border border-gray-700 hover:border-gray-500 hover:text-gray-200'
+                                    }`}
+                                  >
+                                    {isSubSelected && <CheckCircle className="w-3 h-3 flex-shrink-0" />}
+                                    {!isSubSelected && <div className="w-3 h-3 flex-shrink-0" />}
+                                    <span className="truncate">{sub.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
-                  {fieldErrors.professions && <p className="text-red-400 text-xs mt-1">{fieldErrors.professions}</p>}
+                  {fieldErrors.subcategories && <p className="text-red-400 text-xs mt-1">{fieldErrors.subcategories}</p>}
                 </div>
 
                 {/* Opis radnog iskustva */}

@@ -159,7 +159,7 @@ const timerRef = useRef(null);
           {/* Job info */}
           <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6">
             <p className="text-gray-400 text-sm mb-1">Posao #{job.jobId}</p>
-            <h1 className="text-white font-bold text-xl mb-3">{job.jobDescription || 'Bez opisa'}</h1>
+            <h1 className="text-white font-bold text-xl mb-3 truncate">{job.title || job.jobDescription || 'Bez naziva'}</h1>
             <div className="flex flex-wrap gap-4 text-sm text-gray-400">
               <span>Satnica: <span className="text-white font-medium">{job.hourlyRate?.toLocaleString()} RSD/h</span></span>
               {job.estimatedMinutes != null

@@ -20,7 +20,7 @@ const StarRating = ({ rating, onRatingChange, size = 'lg' }) => {
       />
     );
   }
-  return <div className="flex gap-1">{stars}</div>;
+  return <div className="flex justify-center gap-1">{stars}</div>;
 };
 
 const ReviewForm = ({ jobOrderId, onReviewSubmitted, onCancel }) => {

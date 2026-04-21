@@ -188,6 +188,10 @@ namespace WebProdavnica.BusinessLayer.Impl
             var created = _craftsmanRepository.GetByEmail(request.Email);
             if (created == null) return null;
 
+            // Sačuvaj podkategorije
+            if (request.Subcategories.Count > 0)
+                _craftsmanRepository.SaveSubcategories(created.CraftsmanId, request.Subcategories);
+
             _ = SendVerificationEmailAsync(request.Email, verificationToken, "craftsman", created.FirstName ?? "Majstoru");
 
             return new AuthResponse

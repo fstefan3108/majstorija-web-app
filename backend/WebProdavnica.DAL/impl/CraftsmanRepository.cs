@@ -225,6 +225,102 @@ namespace WebProdavnica.DAL.Impl
             return cmd.ExecuteNonQuery() > 0;
         }
 
+        // ── Podkategorije ─────────────────────────────────────────────────────────
+
+        public bool SaveSubcategories(int craftsmanId, List<string> subcategoryIds)
+        {
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            using SqlTransaction tx = conn.BeginTransaction();
+            try
+            {
+                // Obrisi stare
+                var del = conn.CreateCommand();
+                del.Transaction = tx;
+                del.CommandText = "DELETE FROM dbo.craftsman_subcategories WHERE craftsman_id=@cid";
+                del.Parameters.AddWithValue("@cid", craftsmanId);
+                del.ExecuteNonQuery();
+
+                // Ubaci nove
+                foreach (var slug in subcategoryIds.Distinct())
+                {
+                    var ins = conn.CreateCommand();
+                    ins.Transaction = tx;
+                    ins.CommandText = @"
+                        INSERT INTO dbo.craftsman_subcategories (craftsman_id, subcategory_id)
+                        SELECT @cid, subcategory_id FROM dbo.subcategories WHERE slug=@slug";
+                    ins.Parameters.AddWithValue("@cid", craftsmanId);
+                    ins.Parameters.AddWithValue("@slug", slug);
+                    ins.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+                return true;
+            }
+            catch
+            {
+                tx.Rollback();
+                return false;
+            }
+        }
+
+        public List<string> GetSubcategories(int craftsmanId)
+        {
+            var result = new List<string>();
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT s.slug FROM dbo.craftsman_subcategories cs
+                JOIN dbo.subcategories s ON s.subcategory_id = cs.subcategory_id
+                WHERE cs.craftsman_id = @cid";
+            cmd.Parameters.AddWithValue("@cid", craftsmanId);
+            var r = cmd.ExecuteReader();
+            while (r.Read()) result.Add(r.GetString(0));
+            return result;
+        }
+
+        public List<string> GetCategories(int craftsmanId)
+        {
+            var result = new List<string>();
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT DISTINCT c.slug FROM dbo.craftsman_subcategories cs
+                JOIN dbo.subcategories s ON s.subcategory_id = cs.subcategory_id
+                JOIN dbo.categories c ON c.category_id = s.category_id
+                WHERE cs.craftsman_id = @cid";
+            cmd.Parameters.AddWithValue("@cid", craftsmanId);
+            var r = cmd.ExecuteReader();
+            while (r.Read()) result.Add(r.GetString(0));
+            return result;
+        }
+
+        public List<Craftsman> GetBySubcategorySlug(string slug)
+        {
+            var list = new List<Craftsman>();
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT DISTINCT
+                    c.craftsman_id, c.first_name, c.last_name, c.email, c.phone,
+                    c.location, c.profession, c.experience, c.hourly_rate, c.working_hours,
+                    c.password_hash, c.refresh_token, c.refresh_token_expiry, c.average_rating, c.rating_count,
+                    c.professions, c.work_experience_description, c.profile_image_path, c.google_id,
+                    c.password_reset_token, c.password_reset_token_expiry,
+                    c.is_verified, c.verification_token, c.verification_token_expiry
+                FROM dbo.craftsmen c
+                JOIN dbo.craftsman_subcategories cs ON cs.craftsman_id = c.craftsman_id
+                JOIN dbo.subcategories s ON s.subcategory_id = cs.subcategory_id
+                WHERE s.slug = @slug AND c.is_verified = 1";
+            cmd.Parameters.AddWithValue("@slug", slug);
+            var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(MapCraftsman(r));
+            return list;
+        }
+
         private static Craftsman MapCraftsman(SqlDataReader r)
         {
             // Ucitaj professions string, fallback na profession kolonu

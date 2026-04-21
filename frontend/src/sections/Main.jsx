@@ -10,7 +10,7 @@ export default function Main() {
         <Text type="heading" value="Pronađite Pouzdane Lokalne Radnike. Završite Posao — Brzo." />
         <Text type="secondary" value="Izgradnja poverenja među komšijama čineći lokalne usluge jednostavnim, transparentnim i pouzdanim." />
         <div className="w-full gap-4 mt-5 flex items-center justify-center md:justify-normal">
-          <Button type="primary" btnText="Započni" to="/browse-tasks" />
+          <Button type="primary" btnText="Započni" to="/browse" />
           <Button type="terciary" btnText="Saznaj Više" to="/about" />
         </div>
       </div>
