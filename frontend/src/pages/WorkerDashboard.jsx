@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { MessageCircle, InboxIcon, Briefcase, History, CalendarDays } from "lucide-react";
+import { MessageCircle, InboxIcon, Briefcase, History, CalendarDays, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import Header from "../components/Header";
@@ -9,11 +9,13 @@ import NewRequestsAlert from "../components/WorkerDashboard/NewRequestsAlert";
 import JobRequestModal from "../components/WorkerDashboard/JobRequestModal";
 import RequestsTab from "../components/WorkerDashboard/tabs/RequestsTab";
 import ScheduledTab from "../components/WorkerDashboard/tabs/ScheduledTab";
+import SurveysTab from "../components/WorkerDashboard/tabs/SurveysTab";
 import HistoryTab from "../components/WorkerDashboard/tabs/HistoryTab";
 import AvailabilityTab from "../components/WorkerDashboard/tabs/AvailabilityTab";
 
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import RescheduleModal from "../components/RescheduleModal";
 
 // ─────────────────────────────────────────────────────────────
 // Konstante
@@ -22,6 +24,7 @@ import { useAuth } from "../context/AuthContext";
 const TABS = [
   { id: "requests",     label: "Zahtevi za posao",  icon: InboxIcon    },
   { id: "scheduled",   label: "Zakazani poslovi",   icon: Briefcase    },
+  { id: "surveys",     label: "Izviđanja",           icon: Search       },
   { id: "history",     label: "Evidencija poslova", icon: History      },
   { id: "availability",label: "Raspored",            icon: CalendarDays },
 ];
@@ -43,6 +46,7 @@ export default function WorkerDashboard() {
   const [activeTab, setActiveTab]                   = useState("requests");
   const [selectedRequestId, setSelectedRequestId]   = useState(null);
   const [showAlert, setShowAlert]                   = useState(false);
+  const [rescheduleJob, setRescheduleJob]           = useState(null);
 
   const pendingCount = jobRequests.filter((r) => r.status === "pending").length;
 
@@ -222,7 +226,7 @@ export default function WorkerDashboard() {
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 overflow-hidden">
 
             {/* Tab navigacija */}
-            <div className="flex border-b border-gray-700 overflow-x-auto scrollbar-none">
+            <div className="flex border-b border-gray-700 scrollbar-none">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -266,7 +270,11 @@ export default function WorkerDashboard() {
                   onDelete={handleDelete}
                   isLoading={isLoading}
                   craftsmanId={workerData?.craftsmanId}
+                  onReschedule={setRescheduleJob}
                 />
+              )}
+              {activeTab === "surveys" && (
+                <SurveysTab craftsmanId={workerData?.craftsmanId} />
               )}
               {activeTab === "history" && (
                 <HistoryTab
@@ -291,6 +299,17 @@ export default function WorkerDashboard() {
           requestId={selectedRequestId}
           onClose={() => setSelectedRequestId(null)}
           onActionDone={handleModalActionDone}
+        />
+      )}
+
+      {/* Modal za promenu termina — mora biti van backdrop-blur kontejnera */}
+      {rescheduleJob && (
+        <RescheduleModal
+          job={rescheduleJob}
+          craftsmanId={workerData?.craftsmanId || rescheduleJob.craftsmanId}
+          proposedBy="craftsman"
+          onClose={() => setRescheduleJob(null)}
+          onSuccess={() => { setRescheduleJob(null); fetchJobs(); }}
         />
       )}
     </div>

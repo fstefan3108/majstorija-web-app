@@ -13,14 +13,29 @@ export default function PaymentSuccess() {
   const [state, setState] = useState('loading'); // 'loading' | 'success' | 'canceled' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Capture jobId once at mount — sessionStorage gets cleared during pollStatus
+  // Capture jobId/surveyId once at mount — sessionStorage gets cleared during pollStatus
   // before setState('success') triggers re-render, so plain const would become null.
+  const [surveyId] = useState(
+    () => searchParams.get('surveyId') || sessionStorage.getItem('pendingSurveyId')
+  );
   const [jobId] = useState(
     () => searchParams.get('jobId') || sessionStorage.getItem('pendingJobId')
   );
 
+  const clearPendingSession = () => {
+    sessionStorage.removeItem('pendingTransactionId');
+    sessionStorage.removeItem('pendingJobId');
+    sessionStorage.removeItem('pendingSurveyId');
+    sessionStorage.removeItem('checkoutData');
+  };
+
   useEffect(() => {
-    if (state === 'success' && jobId) {
+    if (state !== 'success') return;
+
+    if (surveyId) {
+      // Aktiviraj survey — idempotentno, bezbedno i ako je callback već stigao
+      fetch(`${API_BASE}/api/site-surveys/${surveyId}/activate`, { method: 'POST' }).catch(() => {});
+    } else if (jobId) {
       fetch(`${API_BASE}/api/payments/${jobId}/setup-chat`, { method: 'POST' }).catch(() => {});
     }
   }, [state]);
@@ -31,16 +46,14 @@ export default function PaymentSuccess() {
 
     // User explicitly canceled on AllSecure's page
     if (canceled === 'true') {
-      sessionStorage.removeItem('pendingTransactionId');
-      sessionStorage.removeItem('pendingJobId');
+      clearPendingSession();
       setState('canceled');
       return;
     }
 
     // AllSecure redirected to errorUrl
     if (hasError === 'true') {
-      sessionStorage.removeItem('pendingTransactionId');
-      sessionStorage.removeItem('pendingJobId');
+      clearPendingSession();
       setErrorMsg('Plaćanje nije uspelo na strani AllSecure-a. Pokušajte ponovo.');
       setState('error');
       return;
@@ -65,16 +78,13 @@ export default function PaymentSuccess() {
         const data = await res.json();
 
         if (data.status === 'Preauthorized') {
-          sessionStorage.removeItem('pendingTransactionId');
-          sessionStorage.removeItem('pendingJobId');
-          sessionStorage.removeItem('checkoutData');
+          clearPendingSession();
           setState('success');
           return;
         }
 
         if (data.status === 'Failed') {
-          sessionStorage.removeItem('pendingTransactionId');
-          sessionStorage.removeItem('pendingJobId');
+          clearPendingSession();
           setErrorMsg('Plaćanje je odbijeno od strane banke. Proverite podatke kartice i pokušajte ponovo.');
           setState('error');
           return;
@@ -93,10 +103,7 @@ export default function PaymentSuccess() {
     }
 
     // Callback still hasn't arrived after max wait — assume success.
-    // AllSecure guarantees delivery; status will be updated when it arrives.
-    sessionStorage.removeItem('pendingTransactionId');
-    sessionStorage.removeItem('pendingJobId');
-    sessionStorage.removeItem('checkoutData');
+    clearPendingSession();
     setState('success');
   };
 
@@ -120,9 +127,19 @@ export default function PaymentSuccess() {
               <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle className="w-10 h-10 text-green-400" />
               </div>
-              <h2 className="text-white font-bold text-3xl mb-3">Rezervacija potvrđena!</h2>
-              <p className="text-gray-400 mb-2">Sredstva su rezervisana na vašoj kartici.</p>
-              <p className="text-gray-500 text-sm mb-8">Naplata će biti izvršena kada majstor završi posao.</p>
+              {surveyId ? (
+                <>
+                  <h2 className="text-white font-bold text-3xl mb-3">Izviđanje zakazano!</h2>
+                  <p className="text-gray-400 mb-2">Uplata za izviđanje je potvrđena.</p>
+                  <p className="text-gray-500 text-sm mb-8">Majstor će doći na izviđanje u dogovorenom terminu, proceniti posao i predložiti termin za realizaciju.</p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-white font-bold text-3xl mb-3">Rezervacija potvrđena!</h2>
+                  <p className="text-gray-400 mb-2">Sredstva su rezervisana na vašoj kartici.</p>
+                  <p className="text-gray-500 text-sm mb-8">Naplata će biti izvršena kada majstor završi posao.</p>
+                </>
+              )}
               <div className="flex flex-col gap-3">
                 <Link
                   to="/users/dashboard"

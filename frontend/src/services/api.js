@@ -210,6 +210,100 @@ async updateUser(id, userData) {
     });
   }
 
+  // ── Site Surveys (izviđanje terena) ──────────────────────────────────────
+
+  async proposeSurvey(jobRequestId, scheduledDate, scheduledTime, surveyPrice) {
+    return this.request(`/site-surveys/propose/${jobRequestId}`, {
+      method: 'POST',
+      body: JSON.stringify({ scheduledDate, scheduledTime, surveyPrice }),
+    });
+  }
+
+  async declineSurveyProposal(surveyId) {
+    return this.request(`/site-surveys/${surveyId}/decline-proposal`, {
+      method: 'POST',
+    });
+  }
+
+  async activateSurvey(surveyId) {
+    return this.request(`/site-surveys/${surveyId}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  async cancelSurvey(surveyId, by) {
+    return this.request(`/site-surveys/${surveyId}/cancel?by=${by}`, {
+      method: 'POST',
+    });
+  }
+
+  async getSurveysByUser(userId) {
+    return this.request(`/site-surveys/by-user/${userId}`);
+  }
+
+  async getSurveysByCraftsman(craftsmanId) {
+    return this.request(`/site-surveys/by-craftsman/${craftsmanId}`);
+  }
+
+  async getSurveyByJobRequest(jobRequestId) {
+    return this.request(`/site-surveys/by-job-request/${jobRequestId}`);
+  }
+
+  async proposeSurveyReschedule(surveyId, newDate, newTime, proposedBy) {
+    return this.request(`/site-surveys/${surveyId}/propose-reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({ newDate, newTime, proposedBy }),
+    });
+  }
+
+  async acceptSurveyReschedule(surveyId) {
+    return this.request(`/site-surveys/${surveyId}/accept-reschedule`, {
+      method: 'POST',
+    });
+  }
+
+  async declineSurveyReschedule(surveyId) {
+    return this.request(`/site-surveys/${surveyId}/decline-reschedule`, {
+      method: 'POST',
+    });
+  }
+
+  async completeSurvey(surveyId, estimatedMinutes) {
+    return this.request(`/site-surveys/${surveyId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ estimatedMinutes }),
+    });
+  }
+
+  // Plaćanje izviđanja — koristi isti /api/payments/initiate sa surveyId
+  async initiateSurveyPayment(surveyId, userId, craftsmanId, amount) {
+    return this.request('/payments/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ surveyId, userId, craftsmanId, amount }),
+    });
+  }
+
+  // ── Reschedule ────────────────────────────────────────────────────────────
+
+  async proposeReschedule(jobId, newDate, newTime, proposedBy) {
+    return this.request(`/joborders/${jobId}/propose-reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({ newDate, newTime, proposedBy }),
+    });
+  }
+
+  async acceptReschedule(jobId) {
+    return this.request(`/joborders/${jobId}/accept-reschedule`, {
+      method: 'POST',
+    });
+  }
+
+  async declineReschedule(jobId) {
+    return this.request(`/joborders/${jobId}/decline-reschedule`, {
+      method: 'POST',
+    });
+  }
+
   // ── Notifications ─────────────────────────────────────────────────────────
 
   async getNotifications(recipientId, recipientType, limit = 50) {
