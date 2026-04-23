@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Briefcase, Clock,
-  Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText, ChevronDown
+  Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText, ChevronDown,
+  CreditCard, ShieldCheck, AlertCircle
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -36,6 +37,7 @@ export default function Register() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [cardLoading, setCardLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     userType: 'user',
@@ -163,8 +165,13 @@ export default function Register() {
   };
 
   const handleNextStep = () => {
-    if (validateStep1()) setStep(2);
-    else showErrors(['Molimo ispravite greške u formi']);
+    if (step === 1) {
+      if (validateStep1()) setStep(2);
+      else showErrors(['Molimo ispravite greške u formi']);
+    } else if (step === 2) {
+      if (validateStep2()) { setStep(3); setGeneralErrors([]); }
+      else showErrors(['Molimo ispravite greške u formi']);
+    }
   };
 
   // ─── Google OAuth ──────────────────────────────────────────────────────────
@@ -201,98 +208,148 @@ export default function Register() {
     }
   };
 
-  // ─── Submit ────────────────────────────────────────────────────────────────
+  // ─── Registruje nalog, uploaduje sliku, vraća userId ─────────────────────
+  const registerAccount = async () => {
+    let endpoint, body;
+
+    if (isWorker) {
+      endpoint = `${API_BASE}/api/auth/register/craftsman`;
+      body = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email,
+        phone: normalizePhone(formData.phone),
+        password: formData.password,
+        location: formData.location,
+        subcategories: formData.selectedSubcategories,
+        categories: formData.selectedCategories,
+        experience: parseInt(formData.experience) || 0,
+        hourlyRate: parseFloat(formData.hourlyRate) || 0,
+        workingHours: formData.workingHours,
+        workExperienceDescription: formData.workExperienceDescription || null,
+        googleId: formData.googleId || null,
+      };
+    } else {
+      endpoint = `${API_BASE}/api/auth/register/user`;
+      body = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email,
+        phone: normalizePhone(formData.phone),
+        password: formData.password,
+        location: formData.location || '',
+        googleId: formData.googleId || null,
+      };
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const json = await response.json();
+
+    if (!response.ok || !json.success) {
+      const errs = json.errors
+        ? Object.values(json.errors).flat()
+        : [json.message || 'Registracija nije uspela'];
+      throw new Error(errs.join(' | '));
+    }
+
+    const data = json.data;
+
+    if (isWorker && formData.profileImage && data.userId) {
+      const imgForm = new FormData();
+      imgForm.append('image', formData.profileImage);
+      try {
+        const imgRes = await fetch(`${API_BASE}/api/craftsmen/${data.userId}/profile-image`, {
+          method: 'POST',
+          body: imgForm
+        });
+        if (!imgRes.ok) {
+          const imgJson = await imgRes.json().catch(() => ({}));
+          console.warn('Slika nije uploadovana:', imgJson.message || imgRes.status);
+        }
+      } catch (err) {
+        console.warn('Slika nije uploadovana, nastaviće se bez nje:', err);
+      }
+    }
+
+    return data;
+  };
+
+  // ─── Submit (korisnici i stari flow) ──────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!isWorker) {
       if (!validateStep1()) { showErrors(['Molimo ispravite greške']); return; }
     } else {
-      if (!validateStep2()) { showErrors(['Molimo ispravite greške']); return; }
+      return; // Majstori koriste handleSkipCard / handleAddCard iz step 3
     }
 
     setLoading(true);
     setGeneralErrors([]);
 
     try {
-      let endpoint, body;
-
-      if (isWorker) {
-        endpoint = `${API_BASE}/api/auth/register/craftsman`;
-        body = {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          email: formData.email,
-          phone: normalizePhone(formData.phone),
-          password: formData.password,
-          location: formData.location,
-          subcategories: formData.selectedSubcategories,
-          categories: formData.selectedCategories,
-          experience: parseInt(formData.experience) || 0,
-          hourlyRate: parseFloat(formData.hourlyRate) || 0,
-          workingHours: formData.workingHours,
-          workExperienceDescription: formData.workExperienceDescription || null,
-          googleId: formData.googleId || null,
-        };
-      } else {
-        endpoint = `${API_BASE}/api/auth/register/user`;
-        body = {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          email: formData.email,
-          phone: normalizePhone(formData.phone),
-          password: formData.password,
-          location: formData.location || '',
-          googleId: formData.googleId || null,
-        };
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+      const data = await registerAccount();
+      navigate('/verify-email-pending', {
+        state: { email: data.email, userType: 'user' }
       });
+    } catch (err) {
+      showErrors(err.message.split(' | '));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const json = await response.json();
+  // ─── Step 3: Preskoči karticu ──────────────────────────────────────────────
+  const handleSkipCard = async () => {
+    setLoading(true);
+    setGeneralErrors([]);
+    try {
+      const data = await registerAccount();
+      navigate('/verify-email-pending', {
+        state: { email: data.email, userType: 'craftsman' }
+      });
+    } catch (err) {
+      showErrors(err.message.split(' | '));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      if (!response.ok || !json.success) {
-        const errs = json.errors
-          ? Object.values(json.errors).flat()
-          : [json.message || 'Registracija nije uspela'];
-        showErrors(errs);
-        setLoading(false);
+  // ─── Step 3: Dodaj karticu ─────────────────────────────────────────────────
+  const handleAddCard = async () => {
+    setCardLoading(true);
+    setGeneralErrors([]);
+    try {
+      const data = await registerAccount();
+
+      const res = await fetch(
+        `${API_BASE}/api/craftsmen/${data.userId}/initiate-card-registration`,
+        { method: 'POST' }
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        showErrors([json.message || 'Greška pri pokretanju registracije kartice']);
         return;
       }
 
-      const data = json.data;
-
-      // Upload profilne slike za majstore
-      if (isWorker && formData.profileImage && data.userId) {
-        const imgForm = new FormData();
-        imgForm.append('image', formData.profileImage);
-        try {
-          const imgRes = await fetch(`${API_BASE}/api/craftsmen/${data.userId}/profile-image`, {
-            method: 'POST',
-            body: imgForm
-          });
-          if (!imgRes.ok) {
-            const imgJson = await imgRes.json().catch(() => ({}));
-            console.warn('Slika nije uploadovana:', imgJson.message || imgRes.status);
-          }
-        } catch (err) {
-          console.warn('Slika nije uploadovana, nastaviće se bez nje:', err);
-        }
+      if (json.redirectUrl) {
+        window.location.href = json.redirectUrl;
+      } else {
+        // FINISHED odmah (sandbox edge case) — idi na email verifikaciju
+        navigate('/verify-email-pending', {
+          state: { email: data.email, userType: 'craftsman' }
+        });
       }
-
-      // Nakon registracije korisnik mora verifikovati email — NE logujemo ga
-      navigate('/verify-email-pending', {
-        state: { email: data.email, userType: isWorker ? 'craftsman' : 'user' }
-      });
-
     } catch {
       showErrors(['Greška pri povezivanju sa serverom. Pokušajte ponovo.']);
     } finally {
-      setLoading(false);
+      setCardLoading(false);
     }
   };
 
@@ -321,6 +378,11 @@ export default function Register() {
                 <div className="flex-1 flex flex-col items-center">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'}`}>2</div>
                   <span className={`text-xs mt-1 ${step >= 2 ? 'text-blue-400' : 'text-gray-500'}`}>Profesija</span>
+                </div>
+                <div className={`flex-1 h-0.5 mx-2 mt-[-16px] transition-all ${step >= 3 ? 'bg-blue-600' : 'bg-gray-700'}`} />
+                <div className="flex-1 flex flex-col items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'}`}>3</div>
+                  <span className={`text-xs mt-1 ${step >= 3 ? 'text-blue-400' : 'text-gray-500'}`}>Kartica</span>
                 </div>
               </div>
             )}
@@ -604,7 +666,7 @@ export default function Register() {
 
                 {/* Opis radnog iskustva */}
                 <div>
-                  <label className="block text-gray-300 mb-1 text-sm font-medium flex items-center gap-2">
+                  <label className="flex text-gray-300 mb-1 text-sm font-medium items-center gap-2">
                     <FileText className="w-4 h-4" /> Opis radnog iskustva
                     <span className="text-gray-500 font-normal">(opciono)</span>
                   </label>
@@ -703,11 +765,85 @@ export default function Register() {
                     className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 rounded-lg transition flex items-center justify-center gap-2">
                     <ChevronLeft className="w-4 h-4" /> Nazad
                   </button>
-                  <button type="button" onClick={handleSubmit} disabled={loading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50">
-                    {loading ? 'Kreiranje naloga...' : 'Kreiraj Nalog'}
+                  <button type="button" onClick={handleNextStep}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2">
+                    Sledeći korak <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* ─── STEP 3 (samo majstori) — Dodavanje kartice ──────────────── */}
+            {step === 3 && isWorker && (
+              <div className="space-y-6">
+                <div className="text-center text-gray-400 text-xs mb-2">Korak 3 od 3 — Kartica za plaćanje (opciono)</div>
+
+                {/* Info kartica */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-6 h-6 text-blue-400 flex-shrink-0" />
+                    <h3 className="text-white font-semibold text-sm">Zašto dodati karticu?</h3>
+                  </div>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Kartica se koristi za plaćanje usluge izviđanja terena kada prihvatite zahtev korisnika.
+                    Možete je dodati sada ili u bilo kom trenutku iz podešavanja profila.
+                  </p>
+                </div>
+
+                {/* Bezbednost */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-green-300 text-sm font-semibold">Vaši podaci su bezbedni</p>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      Mi <strong className="text-gray-300">nikada ne čuvamo</strong> podatke vaše kartice.
+                      Unos kartice obavlja se na stranici AllSecure payment gateway-a, koji je PCI DSS sertifikovan.
+                      Mi primamo samo anonimizovani token — čak ni mi ne možemo videti vaš broj kartice.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Upozorenje ako dođe do greške */}
+                {generalErrors.length > 0 && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/40 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      {generalErrors.map((err, i) => (
+                        <p key={i} className="text-red-400 text-sm">{err}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dugmad */}
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAddCard}
+                    disabled={cardLoading || loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    {cardLoading ? 'Učitavanje...' : 'Dodaj karticu i završi registraciju'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSkipCard}
+                    disabled={loading || cardLoading}
+                    className="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-3 px-6 rounded-lg transition disabled:opacity-50"
+                  >
+                    {loading ? 'Kreiranje naloga...' : 'Preskoči — dodaću karticu kasnije'}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setStep(2); setGeneralErrors([]); }}
+                  className="w-full text-gray-500 hover:text-gray-400 text-sm flex items-center justify-center gap-1 transition"
+                >
+                  <ChevronLeft className="w-3 h-3" /> Nazad na profesionalne informacije
+                </button>
               </div>
             )}
 

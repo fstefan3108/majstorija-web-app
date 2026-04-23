@@ -21,19 +21,34 @@ namespace WebProdavnica.BusinessLayer.Impl
 
         private readonly IUserRepository _userRepository;
         private readonly ICraftsmanRepository _craftsmanRepository;
+        private readonly ICraftsmanScheduleRepository _scheduleRepository;
         private readonly IJwtService _jwtService;
         private readonly JwtSettings _jwtSettings;
         private readonly SmtpSettings _smtpSettings;
 
+        // Default schedule: Mon–Fri 08:00–17:00, Sat–Sun off
+        private static readonly List<CraftsmanWeeklySchedule> DefaultSchedule = new()
+        {
+            new() { DayOfWeek = 1, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = true  },
+            new() { DayOfWeek = 2, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = true  },
+            new() { DayOfWeek = 3, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = true  },
+            new() { DayOfWeek = 4, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = true  },
+            new() { DayOfWeek = 5, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = true  },
+            new() { DayOfWeek = 6, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = false },
+            new() { DayOfWeek = 0, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(17, 0, 0), IsAvailable = false },
+        };
+
         public AuthService(
             IUserRepository userRepository,
             ICraftsmanRepository craftsmanRepository,
+            ICraftsmanScheduleRepository scheduleRepository,
             IJwtService jwtService,
             JwtSettings jwtSettings,
             SmtpSettings smtpSettings)
         {
             _userRepository = userRepository;
             _craftsmanRepository = craftsmanRepository;
+            _scheduleRepository = scheduleRepository;
             _jwtService = jwtService;
             _jwtSettings = jwtSettings;
             _smtpSettings = smtpSettings;
@@ -191,6 +206,17 @@ namespace WebProdavnica.BusinessLayer.Impl
             // Sačuvaj podkategorije
             if (request.Subcategories.Count > 0)
                 _craftsmanRepository.SaveSubcategories(created.CraftsmanId, request.Subcategories);
+
+            // Automatski sačuvaj podrazumevani raspored (Pon–Pet 08:00–17:00)
+            var defaultSchedule = DefaultSchedule.Select(s => new CraftsmanWeeklySchedule
+            {
+                CraftsmanId = created.CraftsmanId,
+                DayOfWeek   = s.DayOfWeek,
+                StartTime   = s.StartTime,
+                EndTime     = s.EndTime,
+                IsAvailable = s.IsAvailable,
+            }).ToList();
+            _scheduleRepository.SaveSchedule(created.CraftsmanId, defaultSchedule);
 
             _ = SendVerificationEmailAsync(request.Email, verificationToken, "craftsman", created.FirstName ?? "Majstoru");
 

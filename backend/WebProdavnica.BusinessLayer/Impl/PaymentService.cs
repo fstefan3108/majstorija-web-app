@@ -1,4 +1,4 @@
-﻿using WebProdavnica.BusinessLayer.Abstract;
+using WebProdavnica.BusinessLayer.Abstract;
 using WebProdavnica.DAL.Abstract;
 using WebProdavnica.Entities;
 
@@ -19,13 +19,22 @@ namespace WebProdavnica.BusinessLayer.Impl
         public List<Payment> GetByJob(int jobId)
             => _paymentRepository.GetByJob(jobId);
 
+        public List<Payment> GetBySurvey(int surveyId)
+            => _paymentRepository.GetBySurvey(surveyId);
+
         public Payment? GetByTransactionId(string transactionId)
             => _paymentRepository.GetByTransactionId(transactionId);
 
         public bool UpdateStatus(int jobId, string newStatus)
             => _paymentRepository.UpdateStatus(jobId, newStatus);
 
+        public bool UpdateStatusBySurvey(int surveyId, string newStatus)
+            => _paymentRepository.UpdateStatusBySurvey(surveyId, newStatus);
+
         public bool UpdateCapture(int jobId, string captureTransactionId)
             => _paymentRepository.UpdateCapture(jobId, captureTransactionId);
+
+        public bool UpdateCaptureBySurvey(int surveyId, string captureTransactionId)
+            => _paymentRepository.UpdateCaptureBySurvey(surveyId, captureTransactionId);
     }
 }

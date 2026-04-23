@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff,
-  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown
+  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown,
+  CreditCard, Plus, Trash2, ShieldCheck
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -16,8 +18,13 @@ export default function ProfileSettings() {
   const isCraftsman = user?.role === 'Craftsman';
   const token = user?.accessToken || localStorage.getItem('accessToken');
 
-  // Tab stanje: user ima 2, craftsman ima 3
-  const [activeTab, setActiveTab] = useState('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Tab stanje — ako URL ima ?tab=cards, otvori taj tab direktno
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = searchParams.get('tab');
+    return t || 'profile';
+  });
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -39,6 +46,13 @@ export default function ProfileSettings() {
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: '', newPassword: '', confirmPassword: '',
   });
+
+  const [cards, setCards] = useState([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [cardActionLoading, setCardActionLoading] = useState(false);
+  const [cardError, setCardError] = useState(null);
+  const [cardSuccess, setCardSuccess] = useState(null);
+  const cardAddedHandled = useRef(false);
 
   // ─── Učitavanje podataka ──────────────────────────────────────────────────
   useEffect(() => {
@@ -92,6 +106,91 @@ export default function ProfileSettings() {
   }, [user?.id]);
 
   const clearMessages = () => { setError(null); setSuccess(null); };
+
+  const fetchCards = useCallback(async () => {
+    if (!user?.id || !isCraftsman) return;
+    setCardsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/craftsmen/${user.id}/card-tokens`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json.success) setCards(json.cards);
+    } catch {
+      // tiho ignorišemo — prikazaćemo prazan state
+    } finally {
+      setCardsLoading(false);
+    }
+  }, [user?.id, isCraftsman, token]);
+
+  // Kada se korisnik vrati sa AllSecure stranice (cardAdded=true u URL-u),
+  // prikaži poruku o uspehu i učitaj kartice. Zatim očisti URL param.
+  useEffect(() => {
+    if (cardAddedHandled.current) return;
+    const cardAdded = searchParams.get('cardAdded');
+    const canceled  = searchParams.get('canceled');
+    const error     = searchParams.get('error');
+
+    if (cardAdded === 'true') {
+      cardAddedHandled.current = true;
+      setActiveTab('cards');
+      setCardSuccess('Kartica je uspešno dodata!');
+      fetchCards();
+      setSearchParams({}, { replace: true });
+    } else if (canceled === 'true' || error === 'true') {
+      cardAddedHandled.current = true;
+      setActiveTab('cards');
+      setCardError('Dodavanje kartice nije završeno.');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, fetchCards]);
+
+  const handleAddCard = async () => {
+    setCardActionLoading(true);
+    setCardError(null);
+    setCardSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/craftsmen/${user.id}/initiate-card-registration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ returnPath: '/profile/settings?tab=cards&cardAdded=true' }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setCardError(json.message || 'Greška pri pokretanju registracije kartice.');
+        return;
+      }
+      if (json.redirectUrl) window.location.href = json.redirectUrl;
+    } catch {
+      setCardError('Greška pri povezivanju sa serverom.');
+    } finally {
+      setCardActionLoading(false);
+    }
+  };
+
+  const handleDeleteCard = async (cardId) => {
+    if (!window.confirm('Da li ste sigurni da želite da obrišete ovu karticu?')) return;
+    setCardActionLoading(true);
+    setCardError(null);
+    setCardSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/craftsmen/${user.id}/card-tokens/${cardId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setCardError(json.message || 'Greška pri brisanju kartice.');
+        return;
+      }
+      setCardSuccess('Kartica je uspešno obrisana.');
+      setCards(prev => prev.filter(c => c.id !== cardId));
+    } catch {
+      setCardError('Greška pri povezivanju sa serverom.');
+    } finally {
+      setCardActionLoading(false);
+    }
+  };;
 
   // ─── Snimanje ličnih podataka ─────────────────────────────────────────────
   const handleProfileSave = async (e) => {
@@ -250,21 +349,27 @@ export default function ProfileSettings() {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-700 mb-6">
+          <div className="flex border-b border-gray-700 mb-6 overflow-x-auto">
             <button onClick={() => { setActiveTab('profile'); clearMessages(); }}
-              className={`px-5 py-3 text-sm font-medium transition border-b-2 ${activeTab === 'profile' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
+              className={`px-5 py-3 text-sm font-medium transition border-b-2 whitespace-nowrap ${activeTab === 'profile' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
               Lični podaci
             </button>
             {isCraftsman && (
               <button onClick={() => { setActiveTab('professional'); clearMessages(); }}
-                className={`px-5 py-3 text-sm font-medium transition border-b-2 ${activeTab === 'professional' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
+                className={`px-5 py-3 text-sm font-medium transition border-b-2 whitespace-nowrap ${activeTab === 'professional' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
                 Profesija
               </button>
             )}
             <button onClick={() => { setActiveTab('password'); clearMessages(); }}
-              className={`px-5 py-3 text-sm font-medium transition border-b-2 ${activeTab === 'password' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
+              className={`px-5 py-3 text-sm font-medium transition border-b-2 whitespace-nowrap ${activeTab === 'password' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
               Promena lozinke
             </button>
+            {isCraftsman && (
+              <button onClick={() => { setActiveTab('cards'); clearMessages(); fetchCards(); }}
+                className={`px-5 py-3 text-sm font-medium transition border-b-2 whitespace-nowrap ${activeTab === 'cards' ? 'text-blue-400 border-blue-400' : 'text-gray-400 border-transparent hover:text-white'}`}>
+                Kartice
+              </button>
+            )}
           </div>
 
           {/* Feedback */}
@@ -447,6 +552,84 @@ export default function ProfileSettings() {
                 {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Čuvanje...</> : <><Save className="w-4 h-4" /> Sačuvaj izmene</>}
               </button>
             </form>
+          )}
+
+          {/* ─── Tab: Kartice (samo majstori) ──────────────────────────────── */}
+          {activeTab === 'cards' && isCraftsman && (
+            <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6 space-y-5">
+
+              {/* Bezbednosna napomena */}
+              <div className="flex items-start gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                <ShieldCheck className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Mi <strong className="text-gray-300">nikada ne čuvamo</strong> podatke vaše kartice.
+                  Unos kartice obavlja se na AllSecure PCI DSS sertifikovanoj stranici.
+                  U bazi čuvamo samo anonimizovani token i maskiran broj kartice.
+                </p>
+              </div>
+
+              {/* Feedback */}
+              {cardSuccess && (
+                <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 text-sm">
+                  <CheckCircle className="w-5 h-5 flex-shrink-0" /> {cardSuccess}
+                </div>
+              )}
+              {cardError && (
+                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" /> {cardError}
+                </div>
+              )}
+
+              {/* Lista kartica */}
+              {cardsLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                </div>
+              ) : cards.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Nema sačuvanih kartica.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {cards.map(card => (
+                    <div key={card.id} className="flex items-center justify-between p-4 bg-gray-900/60 border border-gray-600 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="w-5 h-5 text-blue-400" />
+                        <div>
+                          <p className="text-white text-sm font-medium">
+                            {card.cardBrand ?? 'Kartica'} · {card.maskedNumber ?? '••••••••••••'}
+                          </p>
+                          <p className="text-gray-500 text-xs mt-0.5">
+                            Dodata {new Date(card.createdAt).toLocaleDateString('sr-RS')}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCard(card.id)}
+                        disabled={cardActionLoading}
+                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition disabled:opacity-50"
+                        title="Obriši karticu"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Dugme za dodavanje */}
+              <button
+                onClick={handleAddCard}
+                disabled={cardActionLoading}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold transition disabled:opacity-50 text-sm"
+              >
+                {cardActionLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Učitavanje...</>
+                  : <><Plus className="w-4 h-4" /> Dodaj novu karticu</>
+                }
+              </button>
+            </div>
           )}
 
           {/* ─── Tab: Promena lozinke ───────────────────────────────────────── */}

@@ -13,6 +13,7 @@ namespace WebProdavnica.API.Controllers
     {
         private readonly IPaymentService _paymentService;
         private readonly ICardTokenService _cardTokenService;
+        private readonly ICraftsmanCardTokenService _craftsmanCardTokenService;
         private readonly IJobOrderService _jobOrderService;
         private readonly IUserService _userService;
         private readonly ICraftsmanService _craftsmanService;
@@ -20,20 +21,24 @@ namespace WebProdavnica.API.Controllers
         private readonly AllSecureClient _allSecure;
         private readonly IJobRequestService _jobRequestService;
         private readonly IChatService _chatService;
+        private readonly ISiteSurveyService _surveyService;
 
         public PaymentsController(
             IPaymentService paymentService,
             ICardTokenService cardTokenService,
+            ICraftsmanCardTokenService craftsmanCardTokenService,
             IJobOrderService jobOrderService,
             IUserService userService,
             ICraftsmanService craftsmanService,
             INotificationService notificationService,
             AllSecureClient allSecure,
             IJobRequestService jobRequestService,
-            IChatService chatService)
+            IChatService chatService,
+            ISiteSurveyService surveyService)
         {
             _paymentService = paymentService;
             _cardTokenService = cardTokenService;
+            _craftsmanCardTokenService = craftsmanCardTokenService;
             _jobOrderService = jobOrderService;
             _userService = userService;
             _craftsmanService = craftsmanService;
@@ -41,6 +46,7 @@ namespace WebProdavnica.API.Controllers
             _allSecure = allSecure;
             _jobRequestService = jobRequestService;
             _chatService = chatService;
+            _surveyService = surveyService;
         }
 
         // GET /api/payments/card-token/{userId}
@@ -61,34 +67,36 @@ namespace WebProdavnica.API.Controllers
         }
 
         // POST /api/payments/initiate
-        // Phase 1+2: preauthorize with 50% buffer.
+        // Preauthorize the exact amount (no buffer).
         // First-time user  → AllSecure returns REDIRECT to hosted card entry page.
         //                     RegistrationId arrives later via callback (withRegister=true).
         // Returning user   → charge via saved token, typically FINISHED immediately.
+        // Supports both job order payments (JobId) and site survey payments (SurveyId).
         [HttpPost("initiate")]
         public async Task<IActionResult> Initiate([FromBody] InitiatePaymentRequest request)
         {
-            var preauthAmount = request.Amount * 1.5m;  // 50% buffer
+            var preauthAmount = request.Amount;
             var merchantTransactionId = Guid.NewGuid().ToString("N");
             var existingToken = _cardTokenService.GetByUserId(request.UserId);
+
+            // Build callback suffix: "survey/{id}" for surveys, "{id}" for job orders
+            var callbackSuffix = request.SurveyId.HasValue
+                ? $"survey/{request.SurveyId.Value}"
+                : $"{request.JobId ?? 0}";
 
             AllSecureResult result;
 
             if (existingToken != null)
             {
-                // Returning user — charge via stored registration token, no card form needed.
                 result = await _allSecure.PreauthorizeWithRegistrationAsync(
                     merchantTransactionId,
                     preauthAmount,
                     "RSD",
                     existingToken.RegistrationId,
-                    request.JobId);
+                    callbackSuffix);
             }
             else
             {
-                // First-time user — AllSecure returns REDIRECT to their hosted card entry page.
-                // withRegister=true asks AllSecure to tokenize the card for future charges.
-                // RegistrationId arrives in the callback after the user completes payment.
                 var user = _userService.Get(request.UserId);
                 var customerEmail = user?.Email ?? "customer@majstorija.rs";
                 var customerIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
@@ -99,7 +107,7 @@ namespace WebProdavnica.API.Controllers
                     "RSD",
                     customerEmail,
                     customerIp,
-                    request.JobId,
+                    callbackSuffix,
                     withRegister: true);
             }
 
@@ -247,11 +255,10 @@ namespace WebProdavnica.API.Controllers
             return Ok(new { success = true, refundedAmount = refundAmount, newStatus = newPaymentStatus });
         }
 
-        // POST /api/payments/{jobId}/cancel
-        // Korisnik otkazuje zakazani posao u roku od 24h od plaćanja.
-        // Vraća novac (void preauth ili refund capture) i šalje notifikacije.
+        // POST /api/payments/{jobId}/cancel?by=user|craftsman
+        // Otkazivanje zakazanog posla u roku od 24h od plaćanja (sa refundom).
         [HttpPost("{jobId}/cancel")]
-        public async Task<IActionResult> Cancel(int jobId)
+        public async Task<IActionResult> Cancel(int jobId, [FromQuery] string by = "user")
         {
             var job = _jobOrderService.Get(jobId);
             if (job == null)
@@ -312,33 +319,38 @@ namespace WebProdavnica.API.Controllers
             job.Status = "Otkazano";
             _jobOrderService.Update(job);
 
-            // Notifikacija za majstora
+            var dateStr   = job.ScheduledDate.ToString("dd.MM.yyyy");
             var craftsman = _craftsmanService.Get(job.CraftsmanId);
+            var usr       = _userService.Get(job.UserId);
+
+            // Notifikacija za majstora
             if (craftsman != null)
             {
-                var dateStr = job.ScheduledDate.ToString("dd.MM.yyyy");
                 await _notificationService.SendAsync(new Notification
                 {
-                    RecipientId = job.CraftsmanId,
-                    RecipientType = "craftsman",
-                    Type = "job_cancelled",
-                    Title = "Posao otkazan",
-                    Message = $"Korisnik je otkazao posao \"{job.JobDescription}\" zakazan za {dateStr}. Novac je vraćen korisniku.",
+                    RecipientId     = job.CraftsmanId,
+                    RecipientType   = "craftsman",
+                    Type            = "job_cancelled",
+                    Title           = "Posao otkazan",
+                    Message         = by == "craftsman"
+                        ? $"Otkazali ste posao \"{job.JobDescription}\" zakazan za {dateStr}. Novac je vraćen korisniku."
+                        : $"Korisnik je otkazao posao \"{job.JobDescription}\" zakazan za {dateStr}.",
                     RelatedEntityId = jobId,
                 }, craftsman.Email ?? "");
             }
 
             // Notifikacija za korisnika
-            var usr = _userService.Get(job.UserId);
             if (usr != null)
             {
                 await _notificationService.SendAsync(new Notification
                 {
-                    RecipientId = job.UserId,
-                    RecipientType = "user",
-                    Type = "job_cancelled",
-                    Title = "Posao otkazan",
-                    Message = $"Vaš posao \"{job.JobDescription}\" je otkazan. Novac će biti vraćen na vašu karticu.",
+                    RecipientId     = job.UserId,
+                    RecipientType   = "user",
+                    Type            = "job_cancelled",
+                    Title           = "Posao otkazan",
+                    Message         = by == "craftsman"
+                        ? $"Majstor je otkazao posao \"{job.JobDescription}\" zakazan za {dateStr}. Novac će biti vraćen na vašu karticu."
+                        : $"Vaš posao \"{job.JobDescription}\" je otkazan. Novac će biti vraćen na vašu karticu.",
                     RelatedEntityId = jobId,
                 }, usr.Email ?? "");
             }
@@ -363,10 +375,91 @@ namespace WebProdavnica.API.Controllers
             return Ok(new { success = true });
         }
 
+        // POST /api/payments/callback/craftsman-card/{craftsmanId}
+        // AllSecure callback nakon što majstor registruje karticu (Register transakcija).
+        // Nema naplate — samo čuvamo RegistrationId token u bazi.
+        [HttpPost("callback/craftsman-card/{craftsmanId:int}")]
+        public IActionResult CraftsmanCardCallback(int craftsmanId)
+        {
+            string rawBody;
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+                rawBody = reader.ReadToEnd();
+
+            var authHeader  = Request.Headers["Authorization"].FirstOrDefault();
+            var contentType = Request.ContentType ?? "text/xml";
+            var date        = Request.Headers["Date"].FirstOrDefault() ?? "";
+            var requestUri  = Request.Path.ToString();
+
+            if (!_allSecure.VerifyCallbackSignature("POST", rawBody, contentType, date, requestUri, authHeader))
+                return Unauthorized();
+
+            var cb = _allSecure.ParseCallback(rawBody);
+
+            // Za REGISTER transakciju token za buduće naplate je referenceId (AllSecure UUID),
+            // ne registrationId. Dokumentacija: "store referenceId, use as referenceTransactionId".
+            if (cb.TransactionType?.ToUpper() == "REGISTER" && cb.IsSuccess && cb.ReferenceId != null)
+            {
+                var masked = cb.CardFirstSix != null && cb.CardLastFour != null
+                    ? cb.CardFirstSix + "******" + cb.CardLastFour
+                    : "************" + (cb.CardLastFour ?? "????");
+                _craftsmanCardTokenService.Save(craftsmanId, cb.ReferenceId, cb.CardBrand, masked);
+            }
+
+            return Content("OK", "text/plain");
+        }
+
+        // POST /api/payments/callback/survey/{surveyId}
+        // AllSecure callback za uplate izviđanja.
+        [HttpPost("callback/survey/{surveyId:int}")]
+        public async Task<IActionResult> SurveyCallback(int surveyId)
+        {
+            string rawBody;
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+                rawBody = await reader.ReadToEndAsync();
+
+            var authHeader  = Request.Headers["Authorization"].FirstOrDefault();
+            var contentType = Request.ContentType ?? "text/xml";
+            var date        = Request.Headers["Date"].FirstOrDefault() ?? "";
+            var requestUri  = Request.Path.ToString();
+
+            if (!_allSecure.VerifyCallbackSignature("POST", rawBody, contentType, date, requestUri, authHeader))
+                return Unauthorized();
+
+            var cb = _allSecure.ParseCallback(rawBody);
+
+            if (cb.TransactionType?.ToUpper() == "PREAUTHORIZE")
+            {
+                if (cb.IsSuccess)
+                {
+                    _paymentService.UpdateStatusBySurvey(surveyId, "Preauthorized");
+
+                    if (cb.RegistrationId != null)
+                    {
+                        var survey = _surveyService.Get(surveyId);
+                        if (survey != null && _cardTokenService.GetByUserId(survey.UserId) == null)
+                        {
+                            var masked = cb.CardFirstSix != null && cb.CardLastFour != null
+                                ? cb.CardFirstSix + "******" + cb.CardLastFour
+                                : "************" + (cb.CardLastFour ?? "????");
+                            _cardTokenService.Save(survey.UserId, cb.RegistrationId, cb.CardBrand, masked);
+                        }
+                    }
+
+                    await _surveyService.ActivateSurveyAsync(surveyId);
+                }
+                else
+                {
+                    _paymentService.UpdateStatusBySurvey(surveyId, "Failed");
+                }
+            }
+
+            return Content("OK", "text/plain");
+        }
+
         // POST /api/payments/callback/{jobId}
         // AllSecure calls this endpoint asynchronously after every transaction reaches its final state.
         // Must respond with HTTP 200 and body "OK" — otherwise AllSecure retries.
-        [HttpPost("callback/{jobId}")]
+        [HttpPost("callback/{jobId:int}")]
         public async Task<IActionResult> Callback(int jobId)
         {
             string rawBody;
@@ -505,16 +598,20 @@ namespace WebProdavnica.API.Controllers
 
             _paymentService.Add(new Payment
             {
-                JobId = request.JobId,
-                Amount = request.Amount,
+                JobId               = request.JobId,
+                SurveyId            = request.SurveyId,
+                Amount              = request.Amount,
                 PreauthorizedAmount = preauthAmount,
-                Currency = "RSD",
-                PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
-                PaymentStatus = "Preauthorized",
-                TransactionId = result.ReferenceId!,
+                Currency            = "RSD",
+                PaymentMethod       = request.CardBrand ?? existingToken?.CardBrand,
+                PaymentStatus       = "Preauthorized",
+                TransactionId       = result.ReferenceId!,
             });
 
-            _ = NotifyCraftsmanPaymentAsync(request.JobId);
+            if (request.JobId.HasValue)
+                _ = NotifyCraftsmanPaymentAsync(request.JobId.Value);
+            else if (request.SurveyId.HasValue)
+                _ = _surveyService.ActivateSurveyAsync(request.SurveyId.Value);
 
             return Ok(new { status = "preauthorized", transactionId = result.ReferenceId, preauthAmount });
         }
@@ -527,14 +624,15 @@ namespace WebProdavnica.API.Controllers
         {
             _paymentService.Add(new Payment
             {
-                JobId = request.JobId,
-                Amount = request.Amount,
+                JobId               = request.JobId,
+                SurveyId            = request.SurveyId,
+                Amount              = request.Amount,
                 PreauthorizedAmount = preauthAmount,
-                Currency = "RSD",
-                PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
-                PaymentStatus = "Pending",
-                TransactionId = result.ReferenceId!,
-                RedirectUrl = result.RedirectUrl,
+                Currency            = "RSD",
+                PaymentMethod       = request.CardBrand ?? existingToken?.CardBrand,
+                PaymentStatus       = "Pending",
+                TransactionId       = result.ReferenceId!,
+                RedirectUrl         = result.RedirectUrl,
             });
 
             return Ok(new { status = "redirect", redirectUrl = result.RedirectUrl, transactionId = result.ReferenceId });
@@ -548,13 +646,14 @@ namespace WebProdavnica.API.Controllers
         {
             _paymentService.Add(new Payment
             {
-                JobId = request.JobId,
-                Amount = request.Amount,
+                JobId               = request.JobId,
+                SurveyId            = request.SurveyId,
+                Amount              = request.Amount,
                 PreauthorizedAmount = preauthAmount,
-                Currency = "RSD",
-                PaymentMethod = request.CardBrand ?? existingToken?.CardBrand,
-                PaymentStatus = "Pending",
-                TransactionId = result.ReferenceId!,
+                Currency            = "RSD",
+                PaymentMethod       = request.CardBrand ?? existingToken?.CardBrand,
+                PaymentStatus       = "Pending",
+                TransactionId       = result.ReferenceId!,
             });
 
             return Ok(new { status = "pending", transactionId = result.ReferenceId });

@@ -25,7 +25,11 @@ namespace WebProdavnica.Entities
         public int UserId { get; set; }
         public int CraftsmanId { get; set; }
 
-        
+        // Reschedule proposal fields (null = no pending proposal)
+        public DateTime? RescheduleProposedDate { get; set; }
+        public TimeSpan? RescheduleProposedTime { get; set; }
+        public string? RescheduleProposedBy { get; set; } // "user" | "craftsman"
+
         public User? User { get; set; }
         public Craftsman? Craftsman { get; set; }
         public ICollection<Payment> Payments { get; set; } = new List<Payment>();

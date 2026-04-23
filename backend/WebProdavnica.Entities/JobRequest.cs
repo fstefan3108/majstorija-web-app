@@ -18,6 +18,9 @@ namespace WebProdavnica.Entities
         // Popunjava sistem nakon potvrde i placanja
         public int? JobOrderId { get; set; }
 
+        // FK na site_surveys — setuje se kada majstor predloži izviđanje
+        public int? SurveyId { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 

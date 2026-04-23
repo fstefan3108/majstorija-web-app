@@ -5,17 +5,13 @@ using WebProdavnica.Entities;
 
 namespace WebProdavnica.DAL.Impl
 {
-    // Required migration (run once):
-    //   ALTER TABLE dbo.payments ADD capture_transaction_id NVARCHAR(100) NULL;
     public class PaymentRepository : IPaymentRepository
     {
-        // Explicit column list — never use SELECT * to avoid column-order fragility.
         private const string SelectColumns = @"
             payment_id, amount, payment_date, payment_method, payment_status,
             transaction_id, redirect_url, currency, preauthorized_amount, job_id,
-            capture_transaction_id";
+            capture_transaction_id, survey_id";
 
-        // Indices match the SelectColumns list above (0-based).
         private static Payment Map(SqlDataReader r) => new Payment
         {
             PaymentID            = r.GetInt32(0),
@@ -27,8 +23,9 @@ namespace WebProdavnica.DAL.Impl
             RedirectUrl          = r.IsDBNull(6)  ? null : r.GetString(6),
             Currency             = r.IsDBNull(7)  ? null : r.GetString(7),
             PreauthorizedAmount  = r.IsDBNull(8)  ? null : r.GetDecimal(8),
-            JobId                = r.GetInt32(9),
+            JobId                = r.IsDBNull(9)  ? null : r.GetInt32(9),
             CaptureTransactionId = r.IsDBNull(10) ? null : r.GetString(10),
+            SurveyId             = r.IsDBNull(11) ? null : r.GetInt32(11),
         };
 
         public bool Add(Payment payment)
@@ -39,10 +36,10 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 INSERT INTO dbo.payments
                     (amount, payment_date, payment_method, payment_status,
-                     transaction_id, redirect_url, currency, preauthorized_amount, job_id)
+                     transaction_id, redirect_url, currency, preauthorized_amount, job_id, survey_id)
                 VALUES
                     (@amount, @date, @method, @status,
-                     @txId, @redirectUrl, @currency, @preauthAmount, @jobId)";
+                     @txId, @redirectUrl, @currency, @preauthAmount, @jobId, @surveyId)";
 
             cmd.Parameters.AddWithValue("@amount",        payment.Amount);
             cmd.Parameters.AddWithValue("@date",          payment.PaymentDate);
@@ -52,7 +49,8 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@redirectUrl",   payment.RedirectUrl        ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@currency",      payment.Currency           ?? "RSD");
             cmd.Parameters.AddWithValue("@preauthAmount", payment.PreauthorizedAmount ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@jobId",         payment.JobId);
+            cmd.Parameters.AddWithValue("@jobId",         payment.JobId.HasValue ? (object)payment.JobId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@surveyId",      payment.SurveyId.HasValue ? (object)payment.SurveyId.Value : DBNull.Value);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -65,6 +63,19 @@ namespace WebProdavnica.DAL.Impl
             var cmd = conn.CreateCommand();
             cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.payments WHERE job_id = @id";
             cmd.Parameters.AddWithValue("@id", jobId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(Map(r));
+            return list;
+        }
+
+        public List<Payment> GetBySurvey(int surveyId)
+        {
+            var list = new List<Payment>();
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT {SelectColumns} FROM dbo.payments WHERE survey_id = @id";
+            cmd.Parameters.AddWithValue("@id", surveyId);
             using var r = cmd.ExecuteReader();
             while (r.Read()) list.Add(Map(r));
             return list;
@@ -92,6 +103,17 @@ namespace WebProdavnica.DAL.Impl
             return cmd.ExecuteNonQuery() > 0;
         }
 
+        public bool UpdateStatusBySurvey(int surveyId, string newStatus)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE dbo.payments SET payment_status = @status WHERE survey_id = @surveyId";
+            cmd.Parameters.AddWithValue("@status",   newStatus);
+            cmd.Parameters.AddWithValue("@surveyId", surveyId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
         public bool UpdateCapture(int jobId, string captureTransactionId)
         {
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
@@ -103,6 +125,20 @@ namespace WebProdavnica.DAL.Impl
                                 WHERE job_id = @jobId";
             cmd.Parameters.AddWithValue("@captureId", captureTransactionId);
             cmd.Parameters.AddWithValue("@jobId",     jobId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public bool UpdateCaptureBySurvey(int surveyId, string captureTransactionId)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = @"UPDATE dbo.payments
+                                SET payment_status         = 'Captured',
+                                    capture_transaction_id = @captureId
+                                WHERE survey_id = @surveyId";
+            cmd.Parameters.AddWithValue("@captureId", captureTransactionId);
+            cmd.Parameters.AddWithValue("@surveyId",  surveyId);
             return cmd.ExecuteNonQuery() > 0;
         }
     }

@@ -36,9 +36,11 @@ builder.Services.AddScoped<IJobOrderRepository, JobOrderRepository>();
 builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
 builder.Services.AddScoped<IChatRepository, ChatRepository>();
 builder.Services.AddScoped<ICardTokenRepository, CardTokenRepository>();
+builder.Services.AddScoped<ICraftsmanCardTokenRepository, CraftsmanCardTokenRepository>();
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 builder.Services.AddScoped<IJobRequestRepository, JobRequestRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<WebProdavnica.DAL.Abstract.ISiteSurveyRepository, WebProdavnica.DAL.Impl.SiteSurveyRepository>();
 
 // REGISTER BUSINESS LAYER SERVICES
 builder.Services.AddScoped<ICraftsmanScheduleService, CraftsmanScheduleService>();
@@ -50,9 +52,11 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICardTokenService, CardTokenService>();
+builder.Services.AddScoped<ICraftsmanCardTokenService, CraftsmanCardTokenService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IJobRequestService, JobRequestService>();
+builder.Services.AddScoped<WebProdavnica.BusinessLayer.Abstract.ISiteSurveyService, WebProdavnica.BusinessLayer.Impl.SiteSurveyService>();
 builder.Services.AddSingleton<WebProdavnica.API.Services.SseConnectionManager>();
 builder.Services.AddSingleton<WebProdavnica.BusinessLayer.Abstract.ISsePusher>(sp =>
     sp.GetRequiredService<WebProdavnica.API.Services.SseConnectionManager>());
@@ -84,6 +88,7 @@ builder.Services.AddHttpClient("AllSecure", client =>
 });
 builder.Services.AddScoped<WebProdavnica.API.Services.AllSecureClient>();
 builder.Services.AddHostedService<WebProdavnica.API.Services.AutoCaptureService>();
+builder.Services.AddHostedService<WebProdavnica.API.Services.SurveyAutoDeclineService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

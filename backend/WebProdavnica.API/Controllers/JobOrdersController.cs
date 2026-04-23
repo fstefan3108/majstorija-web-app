@@ -133,6 +133,7 @@ namespace WebProdavnica.API.Controllers
                 {
                     j.JobId,
                     j.ScheduledDate,
+                    j.ScheduledTime,
                     j.JobDescription,
                     j.Status,
                     j.TotalPrice,
@@ -145,6 +146,9 @@ namespace WebProdavnica.API.Controllers
                     j.EndedAt,
                     j.ActualSeconds,
                     j.JobRequestId,
+                    j.RescheduleProposedDate,
+                    j.RescheduleProposedTime,
+                    j.RescheduleProposedBy,
                     title = j.JobRequestId.HasValue
                         ? _jobRequestService.Get(j.JobRequestId.Value)?.Title
                         : null,
@@ -183,6 +187,7 @@ namespace WebProdavnica.API.Controllers
                 {
                     j.JobId,
                     j.ScheduledDate,
+                    j.ScheduledTime,
                     j.JobDescription,
                     j.Status,
                     j.TotalPrice,
@@ -195,6 +200,9 @@ namespace WebProdavnica.API.Controllers
                     j.EndedAt,
                     j.ActualSeconds,
                     j.JobRequestId,
+                    j.RescheduleProposedDate,
+                    j.RescheduleProposedTime,
+                    j.RescheduleProposedBy,
                     title = j.JobRequestId.HasValue
                         ? _jobRequestService.Get(j.JobRequestId.Value)?.Title
                         : null,
@@ -487,9 +495,9 @@ namespace WebProdavnica.API.Controllers
             }
         }
 
-        // PATCH /api/joborders/{id}/reschedule
-        [HttpPatch("{id}/reschedule")]
-        public IActionResult Reschedule(int id, [FromBody] RescheduleRequest request)
+        // POST /api/joborders/{id}/propose-reschedule
+        [HttpPost("{id}/propose-reschedule")]
+        public async Task<IActionResult> ProposeReschedule(int id, [FromBody] RescheduleRequest request)
         {
             try
             {
@@ -497,19 +505,156 @@ namespace WebProdavnica.API.Controllers
                     return BadRequest(new { success = false, message = "Neispravan datum." });
                 if (!TimeSpan.TryParse(request.NewTime, out var newTime))
                     return BadRequest(new { success = false, message = "Neispravno vreme." });
+                if (string.IsNullOrWhiteSpace(request.ProposedBy) ||
+                    (request.ProposedBy != "user" && request.ProposedBy != "craftsman"))
+                    return BadRequest(new { success = false, message = "Neispravan inicijator promene." });
 
                 var job = _jobOrderService.Get(id);
                 if (job == null)
                     return NotFound(new { success = false, message = "Posao nije pronađen." });
-
                 if (!string.Equals(job.Status, "zakazano", StringComparison.OrdinalIgnoreCase))
                     return BadRequest(new { success = false, message = "Samo zakazani poslovi mogu biti pomereni." });
+                if (job.RescheduleProposedBy != null)
+                    return BadRequest(new { success = false, message = "Već postoji predlog za promenu termina." });
 
-                bool ok = _jobOrderService.Reschedule(id, newDate, newTime);
-                if (ok)
-                    return Ok(new { success = true, message = "Termin uspešno promenjen." });
+                bool ok = _jobOrderService.ProposeReschedule(id, newDate, newTime, request.ProposedBy);
+                if (!ok) return BadRequest(new { success = false, message = "Predlog termina nije uspeo." });
 
-                return BadRequest(new { success = false, message = "Promena termina nije uspela." });
+                // Odredi primaoca notifikacije (suprotna strana)
+                var craftsman = _craftsmanService.Get(job.CraftsmanId);
+                var usr       = _userService.Get(job.UserId);
+                string newDateStr = newDate.ToString("dd.MM.yyyy");
+                string newTimeStr = newTime.ToString(@"hh\:mm");
+
+                if (request.ProposedBy == "craftsman" && usr != null && craftsman != null)
+                {
+                    await _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId     = job.UserId,
+                        RecipientType   = "user",
+                        Type            = "reschedule_proposed",
+                        Title           = "Majstor predlaže novi termin",
+                        Message         = $"Majstor {craftsman.FirstName} {craftsman.LastName} želi da pomeri termin posla na {newDateStr} u {newTimeStr}h. Prihvatite ili odbijte predlog.",
+                        RelatedEntityId = job.JobId,
+                    }, usr.Email ?? "");
+                }
+                else if (request.ProposedBy == "user" && craftsman != null && usr != null)
+                {
+                    await _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId     = job.CraftsmanId,
+                        RecipientType   = "craftsman",
+                        Type            = "reschedule_proposed",
+                        Title           = "Korisnik predlaže novi termin",
+                        Message         = $"Korisnik {usr.FirstName} {usr.LastName} želi da pomeri termin posla na {newDateStr} u {newTimeStr}h. Prihvatite ili odbijte predlog.",
+                        RelatedEntityId = job.JobId,
+                    }, craftsman.Email ?? "");
+                }
+
+                return Ok(new { success = true, message = "Predlog termina uspešno poslat." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
+        // POST /api/joborders/{id}/accept-reschedule
+        [HttpPost("{id}/accept-reschedule")]
+        public async Task<IActionResult> AcceptReschedule(int id)
+        {
+            try
+            {
+                var job = _jobOrderService.Get(id);
+                if (job == null)
+                    return NotFound(new { success = false, message = "Posao nije pronađen." });
+                if (job.RescheduleProposedBy == null)
+                    return BadRequest(new { success = false, message = "Nema aktivnog predloga za pomenu termina." });
+
+                string newDateStr = job.RescheduleProposedDate?.ToString("dd.MM.yyyy") ?? "";
+                string newTimeStr = job.RescheduleProposedTime?.ToString(@"hh\:mm") ?? "";
+
+                bool ok = _jobOrderService.AcceptReschedule(id);
+                if (!ok) return BadRequest(new { success = false, message = "Prihvatanje termina nije uspelo." });
+
+                var craftsman = _craftsmanService.Get(job.CraftsmanId);
+                var usr       = _userService.Get(job.UserId);
+
+                // Notifikacija obema stranama
+                if (usr != null && craftsman != null)
+                {
+                    await _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId     = job.UserId,
+                        RecipientType   = "user",
+                        Type            = "reschedule_accepted",
+                        Title           = "Termin je uspešno promenjen",
+                        Message         = $"Novi termin posla je potvrđen: {newDateStr} u {newTimeStr}h.",
+                        RelatedEntityId = job.JobId,
+                    }, usr.Email ?? "");
+
+                    await _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId     = job.CraftsmanId,
+                        RecipientType   = "craftsman",
+                        Type            = "reschedule_accepted",
+                        Title           = "Termin je uspešno promenjen",
+                        Message         = $"Novi termin posla je potvrđen: {newDateStr} u {newTimeStr}h.",
+                        RelatedEntityId = job.JobId,
+                    }, craftsman.Email ?? "");
+                }
+
+                return Ok(new { success = true, message = "Termin uspešno promenjen." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
+        // POST /api/joborders/{id}/decline-reschedule
+        [HttpPost("{id}/decline-reschedule")]
+        public async Task<IActionResult> DeclineReschedule(int id)
+        {
+            try
+            {
+                var job = _jobOrderService.Get(id);
+                if (job == null)
+                    return NotFound(new { success = false, message = "Posao nije pronađen." });
+                if (job.RescheduleProposedBy == null)
+                    return BadRequest(new { success = false, message = "Nema aktivnog predloga za promenu termina." });
+
+                var craftsman = _craftsmanService.Get(job.CraftsmanId);
+                var usr       = _userService.Get(job.UserId);
+
+                bool ok = _jobOrderService.DeclineReschedule(id);
+                if (!ok) return BadRequest(new { success = false, message = "Odbijanje predloga nije uspelo." });
+
+                // Notifikacija obema stranama
+                if (usr != null && craftsman != null)
+                {
+                    await _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId     = job.UserId,
+                        RecipientType   = "user",
+                        Type            = "reschedule_declined",
+                        Title           = "Predlog promene termina odbijen",
+                        Message         = "Predlog za promenu termina je odbijen. Posao je otkazan.",
+                        RelatedEntityId = job.JobId,
+                    }, usr.Email ?? "");
+
+                    await _notificationService.SendAsync(new Notification
+                    {
+                        RecipientId     = job.CraftsmanId,
+                        RecipientType   = "craftsman",
+                        Type            = "reschedule_declined",
+                        Title           = "Predlog promene termina odbijen",
+                        Message         = "Predlog za promenu termina je odbijen. Posao je otkazan.",
+                        RelatedEntityId = job.JobId,
+                    }, craftsman.Email ?? "");
+                }
+
+                return Ok(new { success = true, message = "Predlog odbijen, posao je otkazan." });
             }
             catch (Exception ex)
             {
@@ -581,10 +726,11 @@ namespace WebProdavnica.API.Controllers
         public string Status { get; set; }
     }
 
-    // Helper klasa za reschedule
+    // Helper klasa za reschedule proposal
     public class RescheduleRequest
     {
-        public string NewDate { get; set; } = "";  // "2025-06-15"
-        public string NewTime { get; set; } = "";  // "09:00"
+        public string NewDate    { get; set; } = "";          // "2025-06-15"
+        public string NewTime    { get; set; } = "";          // "09:00"
+        public string ProposedBy { get; set; } = "";          // "user" | "craftsman"
     }
 }

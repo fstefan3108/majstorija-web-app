@@ -11,14 +11,15 @@ namespace WebProdavnica.Entities
         public int PaymentID { get; set; }
         public decimal Amount { get; set; }
         public DateTime PaymentDate { get; set; }
-        public string PaymentMethod { get; set; }  
+        public string PaymentMethod { get; set; }
         public string PaymentStatus { get; set; }
-        public string TransactionId { get; set; }  
-        public string RedirectUrl { get; set; } 
+        public string TransactionId { get; set; }
+        public string RedirectUrl { get; set; }
         public string Currency { get; set; } = "RSD";
-        public decimal? PreauthorizedAmount { get; set; }  // buffered amount (Amount * 1.5)
-        public string? CaptureTransactionId { get; set; } // AllSecure referenceId from Capture — needed for refund
-        public int JobId { get; set; }
-        public JobOrder JobOrder { get; set; }
+        public decimal? PreauthorizedAmount { get; set; }
+        public string? CaptureTransactionId { get; set; }
+        public int? JobId { get; set; }       // FK ka job_orders (null za survey uplate)
+        public int? SurveyId { get; set; }    // FK ka site_surveys (null za job uplate)
+        public JobOrder? JobOrder { get; set; }
     }
 }
