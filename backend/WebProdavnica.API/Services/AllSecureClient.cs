@@ -106,11 +106,9 @@ namespace WebProdavnica.API.Services
         /// Reserves funds on the customer's card.
         /// withRegister=true asks AllSecure to also tokenize the card for future charges.
         ///
-        /// First-time user:
-        ///   Returns REDIRECT — redirect user to RedirectUrl (AllSecure hosted payment page).
-        ///   ReferenceId is already present in the REDIRECT response; store it in the DB.
-        ///   After the user completes payment, AllSecure calls callbackUrl/{jobId} with
-        ///   the final result (FINISHED or ERROR) and, if withRegister=true, a RegistrationId.
+        /// callbackSuffix is appended to _callbackUrl to form the full callback URL:
+        ///   - Job payments: "{jobId}"              → …/callback/{jobId}
+        ///   - Survey payments: "survey/{surveyId}" → …/callback/survey/{surveyId}
         /// </summary>
         public Task<AllSecureResult> PreauthorizeAsync(
             string merchantTransactionId,
@@ -118,9 +116,11 @@ namespace WebProdavnica.API.Services
             string currency,
             string customerEmail,
             string customerIp,
-            int jobId,
-            bool withRegister)
+            string callbackSuffix,
+            bool withRegister,
+            string? customSuccessUrl = null)
         {
+            var successUrl = customSuccessUrl ?? _shopperResultUrl;
             var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
     <customer>
       <identification>{XE(merchantTransactionId)}</identification>
@@ -131,10 +131,10 @@ namespace WebProdavnica.API.Services
     <amount>{Fmt(amount)}</amount>
     <currency>{currency}</currency>
     <description>Majstorija rezervacija</description>
-    <successUrl>{XE(_shopperResultUrl)}</successUrl>
-    <cancelUrl>{XE(_shopperResultUrl)}?canceled=true</cancelUrl>
-    <errorUrl>{XE(_shopperResultUrl)}?error=true</errorUrl>
-    <callbackUrl>{XE($"{_callbackUrl}/{jobId}")}</callbackUrl>
+    <successUrl>{XE(successUrl)}</successUrl>
+    <cancelUrl>{XE(successUrl)}?canceled=true</cancelUrl>
+    <errorUrl>{XE(successUrl)}?error=true</errorUrl>
+    <callbackUrl>{XE($"{_callbackUrl}/{callbackSuffix}")}</callbackUrl>
     <withRegister>{withRegister.ToString().ToLower()}</withRegister>";
 
             return PostTransactionAsync("preauthorize", inner);
@@ -144,14 +144,14 @@ namespace WebProdavnica.API.Services
         /// Reserves funds using a previously saved card registration (returning user).
         /// registrationReferenceId = the registrationId returned when the card was registered
         ///   (stored in card_tokens.registration_id).
-        /// Usually completes as FINISHED with no redirect, but may still trigger 3DS.
+        /// callbackSuffix: same convention as PreauthorizeAsync.
         /// </summary>
         public Task<AllSecureResult> PreauthorizeWithRegistrationAsync(
             string merchantTransactionId,
             decimal amount,
             string currency,
             string registrationReferenceId,
-            int jobId)
+            string callbackSuffix)
         {
             // successUrl/cancelUrl/errorUrl are included in case AllSecure triggers a 3DS
             // challenge for the returning user — without them the redirect would have nowhere to go.
@@ -162,7 +162,7 @@ namespace WebProdavnica.API.Services
     <successUrl>{XE(_shopperResultUrl)}</successUrl>
     <cancelUrl>{XE(_shopperResultUrl)}?canceled=true</cancelUrl>
     <errorUrl>{XE(_shopperResultUrl)}?error=true</errorUrl>
-    <callbackUrl>{XE($"{_callbackUrl}/{jobId}")}</callbackUrl>";
+    <callbackUrl>{XE($"{_callbackUrl}/{callbackSuffix}")}</callbackUrl>";
 
             return PostTransactionAsync("preauthorize", inner);
         }
@@ -204,6 +204,51 @@ namespace WebProdavnica.API.Services
     <currency>{currency}</currency>";
 
             return PostTransactionAsync("refund", inner);
+        }
+
+        /// <summary>
+        /// Registers a customer's payment instrument for future charges, without charging anything.
+        /// AllSecure returns REDIRECT — user is sent to their hosted card-entry page.
+        /// After the user saves their card, AllSecure POSTs the callback with registrationId.
+        /// </summary>
+        public Task<AllSecureResult> RegisterAsync(
+            string merchantTransactionId,
+            string customerEmail,
+            string customerIp,
+            string callbackSuffix,
+            string successUrl,
+            string cancelUrl,
+            string errorUrl)
+        {
+            var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
+    <customer>
+      <identification>{XE(merchantTransactionId)}</identification>
+      <billingCountry>RS</billingCountry>
+      <email>{XE(customerEmail)}</email>
+      <ipAddress>{XE(customerIp)}</ipAddress>
+    </customer>
+    <description>Majstorija – registracija kartice</description>
+    <successUrl>{XE(successUrl)}</successUrl>
+    <cancelUrl>{XE(cancelUrl)}</cancelUrl>
+    <errorUrl>{XE(errorUrl)}</errorUrl>
+    <callbackUrl>{XE($"{_callbackUrl}/{callbackSuffix}")}</callbackUrl>";
+
+            return PostTransactionAsync("register", inner);
+        }
+
+        /// <summary>
+        /// Deletes a previously registered payment instrument from AllSecure's side.
+        /// registrationId = the registrationId returned in the Register callback
+        ///                  (stored in craftsman_card_tokens.registration_id).
+        /// </summary>
+        public Task<AllSecureResult> DeregisterAsync(
+            string merchantTransactionId,
+            string registrationId)
+        {
+            var inner = $@"    <transactionId>{XE(merchantTransactionId)}</transactionId>
+    <referenceTransactionId>{XE(registrationId)}</referenceTransactionId>";
+
+            return PostTransactionAsync("deregister", inner);
         }
 
         /// <summary>

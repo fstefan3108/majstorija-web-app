@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Clock, User, CheckCircle,
-  XCircle, Loader2, Image, ChevronLeft, ChevronRight, X
+  XCircle, Loader2, Image, ChevronLeft, ChevronRight, X, Search, DollarSign
 } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -141,7 +141,12 @@ export default function JobRequestPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [showEstimateModal, setShowEstimateModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [actionDone, setActionDone] = useState(null); // 'accepted' | 'declined'
+  const [actionDone, setActionDone] = useState(null); // 'accepted' | 'declined' | 'survey_proposed'
+
+  const [showSurveyForm, setShowSurveyForm] = useState(false);
+  const [surveyDate, setSurveyDate]         = useState('');
+  const [surveyTime, setSurveyTime]         = useState('');
+  const [surveyPrice, setSurveyPrice]       = useState('');
 
   const isCraftsman = user?.role === 'Craftsman';
 
@@ -181,6 +186,23 @@ export default function JobRequestPage() {
       setActionDone('declined');
     } catch (err) {
       alert('Greška pri odbijanju: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleProposeSurvey = async () => {
+    if (!surveyDate || !surveyPrice || Number(surveyPrice) <= 0) {
+      alert('Unesite datum i cenu izviđanja.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const scheduledTime = surveyTime ? surveyTime + ':00' : null;
+      await api.proposeSurvey(id, surveyDate, scheduledTime, Number(surveyPrice));
+      setActionDone('survey_proposed');
+    } catch (err) {
+      alert('Greška pri slanju predloga: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -228,6 +250,12 @@ export default function JobRequestPage() {
                 <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
                 <h2 className="text-white font-bold text-2xl mb-2">Zahtev prihvaćen!</h2>
                 <p className="text-gray-400">Korisnik će biti obavešten o vašoj proceni i ceni. Čekajte njegovu potvrdu.</p>
+              </>
+            ) : actionDone === 'survey_proposed' ? (
+              <>
+                <Search className="w-16 h-16 text-amber-400 mx-auto mb-4" />
+                <h2 className="text-white font-bold text-2xl mb-2">Predlog poslat!</h2>
+                <p className="text-gray-400">Korisnik će biti obavešten o predlogu za izviđanje. Čekajte njegovu potvrdu i uplatu.</p>
               </>
             ) : (
               <>
@@ -344,22 +372,90 @@ export default function JobRequestPage() {
           )}
 
           {/* Akcije — samo za majstora kad je status pending */}
-          {isCraftsman && request.status === 'pending' && (
+          {isCraftsman && request.status === 'pending' && !showSurveyForm && (
             <div className="flex gap-3 mt-2">
               <button
                 onClick={handleDecline}
                 disabled={actionLoading}
                 className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border border-red-500/40 text-red-400 hover:bg-red-500/10 transition font-semibold disabled:opacity-50"
               >
-                <XCircle className="w-5 h-5" /> Odbij zahtev
+                <XCircle className="w-5 h-5" /> Odbij
+              </button>
+              <button
+                onClick={() => setShowSurveyForm(true)}
+                disabled={actionLoading}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition font-semibold disabled:opacity-50"
+              >
+                <Search className="w-5 h-5" /> Izviđanje
               </button>
               <button
                 onClick={() => setShowEstimateModal(true)}
                 disabled={actionLoading}
                 className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-green-600 hover:bg-green-500 text-white font-semibold transition disabled:opacity-50"
               >
-                <CheckCircle className="w-5 h-5" /> Prihvati zahtev
+                <CheckCircle className="w-5 h-5" /> Prihvati
               </button>
+            </div>
+          )}
+
+          {/* Forma za predlog izviđanja */}
+          {isCraftsman && request.status === 'pending' && showSurveyForm && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 mt-2 space-y-4">
+              <h3 className="text-amber-300 font-semibold flex items-center gap-2">
+                <Search className="w-4 h-4" /> Predlog za izviđanje
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1.5 block">Datum*</label>
+                  <input
+                    type="date"
+                    value={surveyDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => setSurveyDate(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1.5 block">Vreme (opciono)</label>
+                  <input
+                    type="time"
+                    value={surveyTime}
+                    onChange={e => setSurveyTime(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1.5 block">Cena izviđanja (RSD)*</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="number"
+                    min={1}
+                    value={surveyPrice}
+                    onChange={e => setSurveyPrice(e.target.value)}
+                    placeholder="npr. 2000"
+                    className="w-full bg-gray-900 border border-gray-600 rounded-lg pl-9 pr-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSurveyForm(false)}
+                  disabled={actionLoading}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-600 text-gray-300 hover:text-white transition text-sm font-medium disabled:opacity-50"
+                >
+                  Nazad
+                </button>
+                <button
+                  onClick={handleProposeSurvey}
+                  disabled={actionLoading || !surveyDate || !surveyPrice || Number(surveyPrice) <= 0}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm transition disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  Pošalji predlog
+                </button>
+              </div>
             </div>
           )}
 
@@ -369,6 +465,8 @@ export default function JobRequestPage() {
               {request.status === 'confirmed' && 'Korisnik je potvrdio zahtev — posao je zakazan.'}
               {request.status === 'declined_by_craftsman' && 'Ovaj zahtev je odbijen.'}
               {request.status === 'declined_by_user' && 'Korisnik je odbio vašu ponudu.'}
+              {request.status === 'survey_proposed' && 'Predlog za izviđanje je poslat — čekate korisnikovu potvrdu i uplatu.'}
+              {request.status === 'survey_scheduled' && 'Izviđanje je zakazano.'}
             </div>
           )}
 

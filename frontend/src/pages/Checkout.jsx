@@ -46,43 +46,51 @@ export default function Checkout() {
       .finally(() => setTokenChecked(true));
   }, [user?.id]);
 
-  // Novi flow: fetchuj craftsman-a po craftsmanId iz job request-a
+  // Fetch craftsman for new job flow or survey flow
+  const craftsmanIdToFetch = bookingData?.fromSurvey
+    ? bookingData?.survey?.craftsmanId
+    : bookingData?.fromRequest?.craftsmanId;
+
   useEffect(() => {
-    if (!bookingData?.fromRequest?.craftsmanId) return;
+    if (!craftsmanIdToFetch) return;
     setCraftsmanLoading(true);
-    fetch(`${API_BASE}/api/craftsmen/${bookingData.fromRequest.craftsmanId}`)
+    fetch(`${API_BASE}/api/craftsmen/${craftsmanIdToFetch}`)
       .then(r => r.json())
       .then(data => setCraftsman(data.data || data))
       .catch(() => {})
       .finally(() => setCraftsmanLoading(false));
-  }, [bookingData?.fromRequest?.craftsmanId]);
+  }, [craftsmanIdToFetch]);
 
   if (!bookingData) return null;
 
   // ── Odredjivanje podataka za prikaz ──────────────────────────────────────
-  // Novi flow dolazi sa: { fromRequest, jobOrderId }
-  // Stari flow dolazi sa: { craftsman, jobOrder, jobId }
-  const isNewFlow = !!bookingData.fromRequest;
-  const req = bookingData.fromRequest;             // job_request objekat
-  const jobOrderId = bookingData.jobOrderId;       // kreirani job_order ID
-  const displayCraftsman = isNewFlow ? craftsman : bookingData.craftsman;
-  const jobId = isNewFlow ? jobOrderId : bookingData.jobId;
+  // Survey flow:  { fromSurvey: true, survey: {...} }
+  // Novi flow:    { fromRequest, jobOrderId }
+  // Stari flow:   { craftsman, jobOrder, jobId }
+  const isSurveyFlow = !!bookingData.fromSurvey;
+  const isNewFlow    = !!bookingData.fromRequest;
+  const req          = bookingData.fromRequest;
+  const surveyData   = bookingData.survey;
+  const jobOrderId   = bookingData.jobOrderId;
 
-  // Cena i detalji
-  const estimatedPrice = isNewFlow
-    ? req.estimatedPrice
-    : bookingData.jobOrder?.totalPrice;
-  const scheduledDate = isNewFlow
-    ? req.scheduledDate
-    : bookingData.jobOrder?.scheduledDate;
-  const description = isNewFlow
-    ? req.description
-    : bookingData.jobOrder?.jobDescription;
-  const isUrgent = isNewFlow ? req.urgent : bookingData.jobOrder?.urgent;
-  const estimatedMinutes = isNewFlow ? req.estimatedMinutes : null;
+  const displayCraftsman = (isSurveyFlow || isNewFlow) ? craftsman : bookingData.craftsman;
+  const jobId    = isSurveyFlow ? null : (isNewFlow ? jobOrderId : bookingData.jobId);
+  const surveyId = isSurveyFlow ? surveyData?.surveyId : null;
+
+  const estimatedPrice = isSurveyFlow
+    ? surveyData?.surveyPrice
+    : isNewFlow ? req?.estimatedPrice : bookingData.jobOrder?.totalPrice;
+  const scheduledDate = isSurveyFlow
+    ? surveyData?.scheduledDate
+    : isNewFlow ? req?.scheduledDate : bookingData.jobOrder?.scheduledDate;
+  const description = isSurveyFlow
+    ? (surveyData?.requestTitle || 'Izviđanje terena')
+    : isNewFlow ? req?.description : bookingData.jobOrder?.jobDescription;
+  const isUrgent         = isSurveyFlow ? false : (isNewFlow ? req?.urgent : bookingData.jobOrder?.urgent);
+  const estimatedMinutes = isSurveyFlow ? null : (isNewFlow ? req?.estimatedMinutes : null);
 
   const handlePayment = async () => {
-    if (!jobId || !displayCraftsman || !estimatedPrice) {
+    if ((!jobId && !surveyId) || !displayCraftsman || !estimatedPrice) {
       setPayError('Nedostaju podaci za plaćanje.');
       return;
     }
@@ -90,7 +98,13 @@ export default function Checkout() {
     setPayError('');
     setLoading(true);
 
-    const body = {
+    const body = isSurveyFlow ? {
+      surveyId:    surveyId,
+      userId:      user?.id,
+      craftsmanId: surveyData.craftsmanId,
+      amount:      surveyData.surveyPrice,
+      cardBrand:   savedCard?.cardBrand ?? null,
+    } : {
       jobId:       jobId,
       userId:      user?.id,
       craftsmanId: displayCraftsman.craftsmanId,
@@ -107,13 +121,15 @@ export default function Checkout() {
       const data = await res.json();
 
       if (data.status === 'preauthorized') {
-        // Vracajuci korisnik — preauth odmah prosao
         sessionStorage.removeItem('checkoutData');
-        navigate(`/payment-success?jobId=${jobId}`);
+        navigate(isSurveyFlow ? `/payment-success?surveyId=${surveyId}` : `/payment-success?jobId=${jobId}`);
       } else if (data.status === 'redirect') {
-        // Prvi put — sacuvaj context i preusmeri na AllSecure stranicu za unos kartice
         sessionStorage.setItem('pendingTransactionId', data.transactionId);
-        sessionStorage.setItem('pendingJobId', jobId);
+        if (isSurveyFlow) {
+          sessionStorage.setItem('pendingSurveyId', String(surveyId));
+        } else {
+          sessionStorage.setItem('pendingJobId', jobId);
+        }
         window.location.href = data.redirectUrl;
       } else {
         setPayError(data.message || 'Plaćanje nije uspelo. Pokušajte ponovo.');
@@ -125,7 +141,7 @@ export default function Checkout() {
     }
   };
 
-  const isReady = tokenChecked && (!isNewFlow || !craftsmanLoading) && displayCraftsman;
+  const isReady = tokenChecked && !craftsmanLoading && displayCraftsman;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
@@ -145,7 +161,9 @@ export default function Checkout() {
 
               {/* Detalji usluge */}
               <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6">
-                <h2 className="text-white font-semibold text-lg mb-4">Detalji usluge</h2>
+                <h2 className="text-white font-semibold text-lg mb-4">
+                  {isSurveyFlow ? 'Detalji izviđanja' : 'Detalji usluge'}
+                </h2>
 
                 {/* Majstor */}
                 <div className="flex items-center gap-4 mb-5 pb-5 border-b border-gray-700">
@@ -160,7 +178,13 @@ export default function Checkout() {
 
                 {/* Info */}
                 <div className="space-y-3">
-                  {isNewFlow && req.title && (
+                  {isSurveyFlow && surveyData?.requestTitle && (
+                    <div className="flex items-start gap-3 text-gray-300 text-sm">
+                      <FileText className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                      <span>Posao: <span className="text-white font-medium">{surveyData.requestTitle}</span></span>
+                    </div>
+                  )}
+                  {!isSurveyFlow && isNewFlow && req?.title && (
                     <div className="flex items-start gap-3 text-gray-300 text-sm">
                       <FileText className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
                       <span>Posao: <span className="text-white font-medium">{req.title}</span></span>
@@ -204,30 +228,43 @@ export default function Checkout() {
               <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-6">
                 <h2 className="text-white font-semibold text-lg mb-4">Pregled cene</h2>
                 <div className="space-y-3">
-                  <div className="flex justify-between text-gray-300 text-sm">
-                    <span>Satnica majstora</span>
-                    <span>{Number(displayCraftsman.hourlyRate).toLocaleString()} RSD/h</span>
-                  </div>
-                  {estimatedMinutes != null && (
+                  {!isSurveyFlow && (
+                    <div className="flex justify-between text-gray-300 text-sm">
+                      <span>Satnica majstora</span>
+                      <span>{Number(displayCraftsman.hourlyRate).toLocaleString()} RSD/h</span>
+                    </div>
+                  )}
+                  {!isSurveyFlow && estimatedMinutes != null && (
                     <div className="flex justify-between text-gray-300 text-sm">
                       <span>Procenjeno vreme</span>
                       <span>{Math.floor(estimatedMinutes / 60)}h {estimatedMinutes % 60}min</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-gray-500 text-xs pt-1">
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                    Minimum 1h naplate · Svaki kvart iznad 1h se zaračunava posebno
-                  </div>
+                  {!isSurveyFlow && (
+                    <div className="flex items-center gap-2 text-gray-500 text-xs pt-1">
+                      <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                      Minimum 1h naplate · Svaki kvart iznad 1h se zaračunava posebno
+                    </div>
+                  )}
+                  {isSurveyFlow && (
+                    <div className="flex items-center gap-2 text-amber-400 text-xs pt-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Fiksna cena izviđanja terena. Iznos se naplaćuje odmah.
+                    </div>
+                  )}
                   <div className="border-t border-gray-700 pt-3 flex justify-between">
-                    <span className="text-white font-bold text-lg">Procenjena cena</span>
+                    <span className="text-white font-bold text-lg">
+                      {isSurveyFlow ? 'Cena izviđanja' : 'Procenjena cena'}
+                    </span>
                     <span className="text-white font-bold text-2xl">
                       {Number(estimatedPrice).toLocaleString('sr-RS')} RSD
                     </span>
                   </div>
-                  <p className="text-gray-500 text-xs">
-                    Na kartici će biti rezervisano {(Number(estimatedPrice) * 1.5).toLocaleString('sr-RS')} RSD
-                    (procena + 50% buffer). Tačan iznos naplaćuje se tek po završetku posla.
-                  </p>
+                  {!isSurveyFlow && (
+                    <p className="text-gray-500 text-xs">
+                      Na kartici će biti rezervisan tačan iznos. Naplata se vrši tek po završetku posla.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -286,7 +323,7 @@ export default function Checkout() {
                   {loading ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> Procesiranje...</>
                   ) : savedCard ? (
-                    <><CreditCard className="w-5 h-5" /> Rezerviši {Number(estimatedPrice).toLocaleString()} RSD</>
+                    <><CreditCard className="w-5 h-5" /> {isSurveyFlow ? 'Plati izviđanje' : 'Rezerviši'} {Number(estimatedPrice).toLocaleString()} RSD</>
                   ) : (
                     <>Nastavi na unos kartice <ArrowRight className="w-5 h-5" /></>
                   )}

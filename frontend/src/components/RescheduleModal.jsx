@@ -142,26 +142,31 @@ function TimePicker({ craftsmanId, selectedDate, selectedTime, onSelectTime }) {
 }
 
 // ─── RescheduleModal ──────────────────────────────────────────────────────────
-export default function RescheduleModal({ job, craftsmanId, onClose, onSuccess }) {
+// proposedBy: "craftsman" | "user" — ko inicira predlog
+export default function RescheduleModal({ job, craftsmanId, proposedBy, onClose, onSuccess }) {
   const [newDate,  setNewDate]  = useState("");
   const [newTime,  setNewTime]  = useState("");
   const [saving,   setSaving]   = useState(false);
   const [status,   setStatus]   = useState(null); // "ok"|"error"|null
+  const [errMsg,   setErrMsg]   = useState("");
 
   const handleSave = async () => {
     if (!newDate || !newTime) return;
     setSaving(true);
     setStatus(null);
+    setErrMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/joborders/${job.jobId}/reschedule`, {
-        method:  "PATCH",
+      const res = await fetch(`${API_BASE}/api/joborders/${job.jobId}/propose-reschedule`, {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ newDate, newTime }),
+        body:    JSON.stringify({ newDate, newTime, proposedBy: proposedBy || "craftsman" }),
       });
-      if (!res.ok) throw new Error((await res.json()).message || "Greška");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Greška");
       setStatus("ok");
-      setTimeout(() => { onSuccess?.(); onClose(); }, 1500);
+      setTimeout(() => { onSuccess?.(); onClose(); }, 2000);
     } catch (e) {
+      setErrMsg(e.message || "Greška pri slanju predloga.");
       setStatus("error");
     } finally {
       setSaving(false);
@@ -174,7 +179,7 @@ export default function RescheduleModal({ job, craftsmanId, onClose, onSuccess }
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <div>
-            <h2 className="text-white font-bold text-lg">Promeni termin</h2>
+            <h2 className="text-white font-bold text-lg">Predloži novi termin</h2>
             <p className="text-gray-400 text-sm">Posao #{job.jobId} · {job.title || job.jobDescription || "Bez naziva"}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition">
@@ -183,7 +188,9 @@ export default function RescheduleModal({ job, craftsmanId, onClose, onSuccess }
         </div>
 
         <div className="p-6 space-y-4">
-          <p className="text-gray-400 text-sm">Izaberite novi slobodan datum:</p>
+          <p className="text-gray-400 text-sm">
+            Izaberite novi slobodan datum. Druga strana mora da prihvati predlog.
+          </p>
 
           <MiniCalendar
             craftsmanId={craftsmanId}
@@ -201,18 +208,18 @@ export default function RescheduleModal({ job, craftsmanId, onClose, onSuccess }
           {newDate && newTime && (
             <p className="text-green-400 text-xs flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" />
-              Novi termin: {newDate.split("-").reverse().join(".")} u {newTime}h
+              Predlog termina: {newDate.split("-").reverse().join(".")} u {newTime}h
             </p>
           )}
 
           {status === "ok" && (
             <div className="flex items-center gap-2 text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
-              <CheckCircle className="w-4 h-4" /> Termin uspešno promenjen!
+              <CheckCircle className="w-4 h-4" /> Predlog je poslat! Čeka se odgovor druge strane.
             </div>
           )}
           {status === "error" && (
             <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
-              <AlertCircle className="w-4 h-4" /> Greška pri promeni termina.
+              <AlertCircle className="w-4 h-4" /> {errMsg || "Greška pri slanju predloga."}
             </div>
           )}
         </div>
@@ -223,8 +230,8 @@ export default function RescheduleModal({ job, craftsmanId, onClose, onSuccess }
             Otkaži
           </button>
           <button onClick={handleSave} disabled={saving || !newDate || !newTime}
-            className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2">
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin"/>Čuva se...</> : "Sačuvaj"}
+            className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin"/>Šalje se...</> : "Pošalji predlog"}
           </button>
         </div>
       </div>

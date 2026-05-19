@@ -8,7 +8,8 @@ namespace WebProdavnica.Entities.DTOs
 {
     public class InitiatePaymentRequest
     {
-        public int JobId { get; set; }
+        public int? JobId { get; set; }      // za job order uplate
+        public int? SurveyId { get; set; }   // za site survey uplate
         public int UserId { get; set; }
         public int CraftsmanId { get; set; }
         public decimal Amount { get; set; }
@@ -17,7 +18,7 @@ namespace WebProdavnica.Entities.DTOs
         public string? CardExpiryYear { get; set; }
         public string? CardCvv { get; set; }
         public string? CardBrand { get; set; }
-        public string? MerchantTransactionId { get; set; } 
+        public string? MerchantTransactionId { get; set; }
     }
 
     public class PaymentStatusRequest

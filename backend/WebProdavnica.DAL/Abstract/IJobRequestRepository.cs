@@ -11,6 +11,7 @@ namespace WebProdavnica.DAL.Abstract
         bool UpdateStatus(int requestId, string status);
         bool SetEstimate(int requestId, int estimatedMinutes, decimal estimatedPrice);
         bool SetJobOrderId(int requestId, int jobOrderId);
+        bool SetSurveyId(int requestId, int surveyId);
         void AddImage(int requestId, string filePath);
         List<string> GetImages(int requestId);
     }

@@ -15,6 +15,8 @@ namespace WebProdavnica.BusinessLayer.Abstract
         bool ResumeTimer(int jobId);
         TimerFinishResult FinishTimer(int jobId);
         TimerState GetTimerState(int jobId);
-        bool Reschedule(int jobId, DateTime newDate, TimeSpan newTime);
+        bool ProposeReschedule(int jobId, DateTime proposedDate, TimeSpan proposedTime, string proposedBy);
+        bool AcceptReschedule(int jobId);
+        bool DeclineReschedule(int jobId);
     }
 }

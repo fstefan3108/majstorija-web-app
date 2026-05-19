@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, BriefcaseBusiness, CheckCircle, XCircle, Info, Star, X } from 'lucide-react';
+import { Bell, BriefcaseBusiness, CheckCircle, XCircle, Info, Star, X, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -8,16 +8,26 @@ import api from '../services/api';
 const API_BASE = 'http://localhost:5114';
 
 const TYPE_META = {
-  job_request_received:  { icon: BriefcaseBusiness, color: 'text-blue-400',   label: 'Novi zahtev'       },
-  job_request_accepted:  { icon: CheckCircle,        color: 'text-green-400',  label: 'Zahtev prihvaćen'  },
-  job_request_declined:  { icon: XCircle,            color: 'text-red-400',    label: 'Zahtev odbijen'    },
-  job_confirmed:         { icon: CheckCircle,        color: 'text-green-400',  label: 'Posao zakazan'     },
-  job_started:           { icon: BriefcaseBusiness,  color: 'text-blue-400',   label: 'Posao započet'     },
-  job_finished:          { icon: CheckCircle,        color: 'text-purple-400', label: 'Posao završen'     },
-  job_cancelled:         { icon: XCircle,            color: 'text-red-400',    label: 'Posao otkazan'     },
-  payment_captured:      { icon: CheckCircle,        color: 'text-green-400',  label: 'Uplata potvrđena'  },
-  review_received:       { icon: Star,               color: 'text-yellow-400', label: 'Nova ocena'        },
-  general:               { icon: Info,               color: 'text-gray-400',   label: 'Obaveštenje'       },
+  job_request_received:        { icon: BriefcaseBusiness, color: 'text-blue-400',    label: 'Novi zahtev'                     },
+  job_request_accepted:        { icon: CheckCircle,        color: 'text-green-400',   label: 'Zahtev prihvaćen'                },
+  job_request_declined:        { icon: XCircle,            color: 'text-red-400',     label: 'Zahtev odbijen'                  },
+  job_confirmed:               { icon: CheckCircle,        color: 'text-green-400',   label: 'Posao zakazan'                   },
+  job_started:                 { icon: BriefcaseBusiness,  color: 'text-blue-400',    label: 'Posao započet'                   },
+  job_finished:                { icon: CheckCircle,        color: 'text-purple-400',  label: 'Posao završen'                   },
+  job_cancelled:               { icon: XCircle,            color: 'text-red-400',     label: 'Posao otkazan'                   },
+  payment_captured:            { icon: CheckCircle,        color: 'text-green-400',   label: 'Uplata potvrđena'                },
+  review_received:             { icon: Star,               color: 'text-yellow-400',  label: 'Nova ocena'                      },
+  reschedule_proposed:         { icon: BriefcaseBusiness,  color: 'text-purple-400',  label: 'Predlog novog termina'           },
+  reschedule_accepted:         { icon: CheckCircle,        color: 'text-green-400',   label: 'Termin promenjen'                },
+  reschedule_declined:         { icon: XCircle,            color: 'text-red-400',     label: 'Predlog odbijen'                 },
+  survey_proposed:             { icon: Search,             color: 'text-amber-400',   label: 'Predlog izviđanja'               },
+  survey_declined:             { icon: XCircle,            color: 'text-red-400',     label: 'Izviđanje odbijeno'              },
+  survey_scheduled:            { icon: Search,             color: 'text-amber-400',   label: 'Izviđanje zakazano'              },
+  survey_reschedule_proposed:  { icon: BriefcaseBusiness,  color: 'text-purple-400',  label: 'Predlog termina izviđanja'      },
+  survey_reschedule_accepted:  { icon: CheckCircle,        color: 'text-green-400',   label: 'Termin izviđanja promenjen'     },
+  survey_cancelled:            { icon: XCircle,            color: 'text-red-400',     label: 'Izviđanje otkazano'              },
+  survey_completed:            { icon: CheckCircle,        color: 'text-green-400',   label: 'Izviđanje završeno'              },
+  general:                     { icon: Info,               color: 'text-gray-400',    label: 'Obaveštenje'                     },
 };
 
 function timeAgo(dateStr) {
@@ -28,19 +38,30 @@ function timeAgo(dateStr) {
   return `pre ${Math.floor(diff / 86400)} dana`;
 }
 
-function resolveNavigation(n) {
+function resolveNavigation(n, role) {
+  const userDash = role === 'Craftsman' ? '/dashboard' : '/users/dashboard';
   switch (n.type) {
     case 'job_request_received':
       return n.relatedEntityId ? `/job-request/${n.relatedEntityId}` : '/dashboard';
     case 'job_request_accepted':
     case 'job_request_declined':
-      return '/dashboard';
     case 'job_confirmed':
     case 'job_started':
     case 'job_finished':
     case 'job_cancelled':
     case 'payment_captured':
-      return '/dashboard';
+    case 'reschedule_proposed':
+    case 'reschedule_accepted':
+    case 'reschedule_declined':
+      return userDash;
+    case 'survey_proposed':
+    case 'survey_declined':
+    case 'survey_scheduled':
+    case 'survey_reschedule_proposed':
+    case 'survey_reschedule_accepted':
+    case 'survey_cancelled':
+    case 'survey_completed':
+      return userDash;
     case 'review_received':
       return n.relatedEntityId ? `/craftsmen/${n.relatedEntityId}#reviews` : '/dashboard';
     default:
@@ -134,7 +155,7 @@ export default function NotificationBell() {
   };
 
   const handleModalNavigate = () => {
-    const path = resolveNavigation(modal);
+    const path = resolveNavigation(modal, user?.role);
     removeNotification(modal.notificationId);
     setModal(null);
     if (path) navigate(path);
@@ -245,7 +266,7 @@ export default function NotificationBell() {
             {(() => {
               const meta = TYPE_META[modal.type] ?? TYPE_META.general;
               const Icon = meta.icon;
-              const path = resolveNavigation(modal);
+              const path = resolveNavigation(modal, user?.role);
               return (
                 <>
                   <div className="flex items-center gap-3 mb-4">

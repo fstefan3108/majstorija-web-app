@@ -21,7 +21,11 @@ namespace WebProdavnica.DAL.Impl
             JobOrderId       = r.IsDBNull(9)  ? null : r.GetInt32(9),
             CreatedAt        = r.GetDateTime(10),
             UpdatedAt        = r.GetDateTime(11),
+<<<<<<< HEAD
             Address          = r.IsDBNull(12) ? null : r.GetString(12),
+=======
+            SurveyId         = r.IsDBNull(12) ? null : r.GetInt32(12),
+>>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
         };
 
         public int Add(JobRequest req)
@@ -52,7 +56,11 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
+<<<<<<< HEAD
                        job_order_id, created_at, updated_at, address
+=======
+                       job_order_id, created_at, updated_at, survey_id
+>>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
                 FROM dbo.job_requests WHERE request_id = @id";
             cmd.Parameters.AddWithValue("@id", id);
             using var r = cmd.ExecuteReader();
@@ -71,7 +79,11 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
+<<<<<<< HEAD
                        job_order_id, created_at, updated_at, address
+=======
+                       job_order_id, created_at, updated_at, survey_id
+>>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
                 FROM dbo.job_requests
                 WHERE user_id = @uid
                 ORDER BY created_at DESC";
@@ -93,7 +105,11 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
+<<<<<<< HEAD
                        job_order_id, created_at, updated_at, address
+=======
+                       job_order_id, created_at, updated_at, survey_id
+>>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
                 FROM dbo.job_requests
                 WHERE craftsman_id = @cid
                 ORDER BY created_at DESC";
@@ -151,6 +167,22 @@ namespace WebProdavnica.DAL.Impl
                     updated_at   = GETUTCDATE()
                 WHERE request_id = @id";
             cmd.Parameters.AddWithValue("@jid", jobOrderId);
+            cmd.Parameters.AddWithValue("@id",  requestId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public bool SetSurveyId(int requestId, int surveyId)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE dbo.job_requests
+                SET survey_id  = @sid,
+                    status     = 'survey_scheduled',
+                    updated_at = GETUTCDATE()
+                WHERE request_id = @id";
+            cmd.Parameters.AddWithValue("@sid", surveyId);
             cmd.Parameters.AddWithValue("@id",  requestId);
             return cmd.ExecuteNonQuery() > 0;
         }

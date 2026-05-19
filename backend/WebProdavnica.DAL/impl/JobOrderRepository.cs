@@ -12,26 +12,30 @@ namespace WebProdavnica.DAL.Impl
             job_id, scheduled_date, job_description, status,
             total_price, user_id, craftsman_id, hourly_rate, estimated_hours,
             started_at, ended_at, actual_seconds, estimated_minutes, job_request_id,
-            scheduled_time";
+            scheduled_time,
+            reschedule_proposed_date, reschedule_proposed_time, reschedule_proposed_by";
 
         // Indices match SelectColumns above (0-based).
         private static JobOrder Map(SqlDataReader r) => new JobOrder
         {
-            JobId            = r.GetInt32(0),
-            ScheduledDate    = r.GetDateTime(1),
-            JobDescription   = r.IsDBNull(2)  ? null : r.GetString(2),
-            Status           = r.IsDBNull(3)  ? null : r.GetString(3),
-            TotalPrice       = r.GetDecimal(4),
-            UserId           = r.GetInt32(5),
-            CraftsmanId      = r.GetInt32(6),
-            HourlyRate       = r.IsDBNull(7)  ? 0    : r.GetDecimal(7),
-            EstimatedHours   = r.IsDBNull(8)  ? 0    : r.GetInt32(8),
-            StartedAt        = r.IsDBNull(9)  ? null : r.GetDateTime(9),
-            EndedAt          = r.IsDBNull(10) ? null : r.GetDateTime(10),
-            ActualSeconds    = r.IsDBNull(11) ? null : r.GetInt32(11),
-            EstimatedMinutes = r.IsDBNull(12) ? null : r.GetInt32(12),
-            JobRequestId     = r.IsDBNull(13) ? null : r.GetInt32(13),
-            ScheduledTime    = r.IsDBNull(14) ? null : r.GetTimeSpan(14),
+            JobId                    = r.GetInt32(0),
+            ScheduledDate            = r.GetDateTime(1),
+            JobDescription           = r.IsDBNull(2)  ? null : r.GetString(2),
+            Status                   = r.IsDBNull(3)  ? null : r.GetString(3),
+            TotalPrice               = r.GetDecimal(4),
+            UserId                   = r.GetInt32(5),
+            CraftsmanId              = r.GetInt32(6),
+            HourlyRate               = r.IsDBNull(7)  ? 0    : r.GetDecimal(7),
+            EstimatedHours           = r.IsDBNull(8)  ? 0    : r.GetInt32(8),
+            StartedAt                = r.IsDBNull(9)  ? null : r.GetDateTime(9),
+            EndedAt                  = r.IsDBNull(10) ? null : r.GetDateTime(10),
+            ActualSeconds            = r.IsDBNull(11) ? null : r.GetInt32(11),
+            EstimatedMinutes         = r.IsDBNull(12) ? null : r.GetInt32(12),
+            JobRequestId             = r.IsDBNull(13) ? null : r.GetInt32(13),
+            ScheduledTime            = r.IsDBNull(14) ? null : r.GetTimeSpan(14),
+            RescheduleProposedDate   = r.IsDBNull(15) ? null : r.GetDateTime(15),
+            RescheduleProposedTime   = r.IsDBNull(16) ? null : r.GetTimeSpan(16),
+            RescheduleProposedBy     = r.IsDBNull(17) ? null : r.GetString(17),
         };
 
         // ── CRUD ──────────────────────────────────────────────────────────────
@@ -117,7 +121,10 @@ namespace WebProdavnica.DAL.Impl
                     actual_seconds=@as,
                     estimated_minutes=@em,
                     job_request_id=@jrid,
-                    scheduled_time=@stime
+                    scheduled_time=@stime,
+                    reschedule_proposed_date=@rpd,
+                    reschedule_proposed_time=@rpt,
+                    reschedule_proposed_by=@rpb
                 WHERE job_id=@id";
             cmd.Parameters.AddWithValue("@sd",    j.ScheduledDate);
             cmd.Parameters.AddWithValue("@jd",    j.JobDescription ?? (object)DBNull.Value);
@@ -131,6 +138,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@em",    j.EstimatedMinutes ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@jrid",  j.JobRequestId ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@stime", j.ScheduledTime.HasValue ? (object)j.ScheduledTime.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@rpd",   j.RescheduleProposedDate.HasValue ? (object)j.RescheduleProposedDate.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@rpt",   j.RescheduleProposedTime.HasValue ? (object)j.RescheduleProposedTime.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@rpb",   j.RescheduleProposedBy ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@id",    j.JobId);
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -346,21 +356,53 @@ namespace WebProdavnica.DAL.Impl
             };
         }
 
-        // ── Reschedule ────────────────────────────────────────────────────────
-        public bool Reschedule(int jobId, DateTime newDate, TimeSpan newTime)
+        // ── Reschedule (two-party approval) ──────────────────────────────────
+
+        public bool ProposeReschedule(int jobId, DateTime proposedDate, TimeSpan proposedTime, string proposedBy)
         {
             using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
             conn.Open();
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 UPDATE dbo.job_orders
-                SET scheduled_date = @date,
-                    scheduled_time = @time
+                SET reschedule_proposed_date = @date,
+                    reschedule_proposed_time = @time,
+                    reschedule_proposed_by   = @by
                 WHERE job_id = @id
-                  AND status IN ('zakazano', 'Zakazano')";
-            cmd.Parameters.AddWithValue("@date", newDate.Date);
-            cmd.Parameters.AddWithValue("@time", newTime);
+                  AND status IN ('zakazano', 'Zakazano')
+                  AND reschedule_proposed_by IS NULL";
+            cmd.Parameters.AddWithValue("@date", proposedDate.Date);
+            cmd.Parameters.AddWithValue("@time", proposedTime);
+            cmd.Parameters.AddWithValue("@by",   proposedBy);
             cmd.Parameters.AddWithValue("@id",   jobId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public bool AcceptReschedule(int jobId)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE dbo.job_orders
+                SET scheduled_date           = reschedule_proposed_date,
+                    scheduled_time           = reschedule_proposed_time,
+                    reschedule_proposed_date = NULL,
+                    reschedule_proposed_time = NULL,
+                    reschedule_proposed_by   = NULL
+                WHERE job_id = @id
+                  AND reschedule_proposed_by IS NOT NULL";
+            cmd.Parameters.AddWithValue("@id", jobId);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public bool DeclineReschedule(int jobId)
+        {
+            using var conn = new SqlConnection(DataBaseConstant.ConnectionString);
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM dbo.job_orders WHERE job_id = @id AND reschedule_proposed_by IS NOT NULL";
+            cmd.Parameters.AddWithValue("@id", jobId);
             return cmd.ExecuteNonQuery() > 0;
         }
     }

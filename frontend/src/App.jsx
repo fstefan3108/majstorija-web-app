@@ -25,6 +25,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import EmailVerificationPending from './pages/EmailVerificationPending';
 import VerifyEmail from './pages/VerifyEmail';
+import CardRegistered from './pages/CardRegistered';
 import ScrollToTop from './components/ScrollToTop';
 
 const GOOGLE_CLIENT_ID = "432202911287-rm1iq2ifogskv0t7d2n22rv9rpmu78e2.apps.googleusercontent.com";
@@ -63,6 +64,7 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email-pending" element={<EmailVerificationPending />} />
           <Route path="/verify-email/confirm" element={<VerifyEmail />} />
+          <Route path="/card-registered" element={<CardRegistered />} />
         </Routes>
       </BrowserRouter>
     </GoogleOAuthProvider>
