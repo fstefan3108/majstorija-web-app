@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   X, Loader2, Calendar, AlertTriangle, Clock,
-<<<<<<< HEAD
-  Image, CheckCircle, XCircle, MapPin
-=======
-  Image, CheckCircle, XCircle, Search, DollarSign
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
+  Image, CheckCircle, XCircle, MapPin, Search, DollarSign
 } from "lucide-react";
 import api from "../../services/api";
 import ImageLightbox from "./modals/ImageLightbox";

@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-<<<<<<< HEAD
-import { MessageCircle, InboxIcon, Briefcase, History, CalendarDays } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
-=======
 import { MessageCircle, InboxIcon, Briefcase, History, CalendarDays, Search } from "lucide-react";
-import { Link } from "react-router-dom";
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
+import { Link, useLocation } from "react-router-dom";
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";

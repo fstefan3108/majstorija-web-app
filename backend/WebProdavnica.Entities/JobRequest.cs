@@ -18,13 +18,12 @@ namespace WebProdavnica.Entities
         // Popunjava sistem nakon potvrde i placanja
         public int? JobOrderId { get; set; }
 
-<<<<<<< HEAD
         public string? Address { get; set; }
-=======
+
         // FK na site_surveys — setuje se kada majstor predloži izviđanje
         public int? SurveyId { get; set; }
 
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 

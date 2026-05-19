@@ -1,16 +1,9 @@
-<<<<<<< HEAD
-import { useState, useEffect, useRef } from 'react';
-import {
-  User, Mail, Phone, Lock, Save, Eye, EyeOff,
-  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown, Upload, Camera
-=======
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff,
-  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown,
+  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown, Upload, Camera,
   CreditCard, Plus, Trash2, ShieldCheck
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -124,7 +117,6 @@ export default function ProfileSettings() {
 
   const clearMessages = () => { setError(null); setSuccess(null); };
 
-<<<<<<< HEAD
   // ─── Upload profilne slike ────────────────────────────────────────────────
   const handleImageUpload = async (file) => {
     if (!file) return;
@@ -156,7 +148,6 @@ export default function ProfileSettings() {
     }
   };
 
-=======
   const fetchCards = useCallback(async () => {
     if (!user?.id || !isCraftsman) return;
     setCardsLoading(true);
@@ -240,9 +231,8 @@ export default function ProfileSettings() {
     } finally {
       setCardActionLoading(false);
     }
-  };;
+  };
 
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
   // ─── Snimanje ličnih podataka ─────────────────────────────────────────────
   const handleProfileSave = async (e) => {
     e.preventDefault();

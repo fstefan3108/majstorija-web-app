@@ -1,14 +1,9 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-<<<<<<< HEAD
-  Mail, Lock, Eye, EyeOff, User, Phone, Briefcase, Clock,
-  Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText, ChevronDown
-=======
   Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Briefcase, Clock,
   Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText, ChevronDown,
   CreditCard, ShieldCheck, AlertCircle
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -300,54 +295,9 @@ export default function Register() {
     setGeneralErrors([]);
 
     try {
-<<<<<<< HEAD
-      let endpoint, body;
-
-      if (isWorker) {
-        endpoint = `${API_BASE}/api/auth/register/craftsman`;
-        body = {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          email: formData.email,
-          phone: normalizePhone(formData.phone),
-          password: formData.password,
-          location: formData.location,
-          latitude: formData.latitude,
-          longitude: formData.longitude,
-          city: formData.city || null,
-          subcategories: formData.selectedSubcategories,
-          categories: formData.selectedCategories,
-          experience: parseInt(formData.experience) || 0,
-          hourlyRate: parseFloat(formData.hourlyRate) || 0,
-          workingHours: formData.workingHours,
-          workExperienceDescription: formData.workExperienceDescription || null,
-          googleId: formData.googleId || null,
-        };
-      } else {
-        endpoint = `${API_BASE}/api/auth/register/user`;
-        body = {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          email: formData.email,
-          phone: normalizePhone(formData.phone),
-          password: formData.password,
-          location: formData.location || '',
-          latitude: formData.latitude,
-          longitude: formData.longitude,
-          city: formData.city || null,
-          googleId: formData.googleId || null,
-        };
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-=======
       const data = await registerAccount();
       navigate('/verify-email-pending', {
         state: { email: data.email, userType: 'user' }
->>>>>>> 705a46224ddbb7319c19c261021fee9e0e5baca1
       });
     } catch (err) {
       showErrors(err.message.split(' | '));
