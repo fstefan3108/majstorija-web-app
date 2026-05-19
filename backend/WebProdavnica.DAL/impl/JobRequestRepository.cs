@@ -21,6 +21,7 @@ namespace WebProdavnica.DAL.Impl
             JobOrderId       = r.IsDBNull(9)  ? null : r.GetInt32(9),
             CreatedAt        = r.GetDateTime(10),
             UpdatedAt        = r.GetDateTime(11),
+            Address          = r.IsDBNull(12) ? null : r.GetString(12),
         };
 
         public int Add(JobRequest req)
@@ -30,14 +31,15 @@ namespace WebProdavnica.DAL.Impl
             var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 INSERT INTO dbo.job_requests
-                    (title, description, scheduled_date, status, user_id, craftsman_id)
+                    (title, description, scheduled_date, status, user_id, craftsman_id, address)
                 OUTPUT INSERTED.request_id
-                VALUES (@t, @d, @sd, 'pending', @uid, @cid)";
-            cmd.Parameters.AddWithValue("@t",   req.Title);
-            cmd.Parameters.AddWithValue("@d",   req.Description);
-            cmd.Parameters.AddWithValue("@sd",  req.ScheduledDate);
-            cmd.Parameters.AddWithValue("@uid", req.UserId);
-            cmd.Parameters.AddWithValue("@cid", req.CraftsmanId);
+                VALUES (@t, @d, @sd, 'pending', @uid, @cid, @addr)";
+            cmd.Parameters.AddWithValue("@t",    req.Title);
+            cmd.Parameters.AddWithValue("@d",    req.Description);
+            cmd.Parameters.AddWithValue("@sd",   req.ScheduledDate);
+            cmd.Parameters.AddWithValue("@uid",  req.UserId);
+            cmd.Parameters.AddWithValue("@cid",  req.CraftsmanId);
+            cmd.Parameters.AddWithValue("@addr", (object?)req.Address ?? DBNull.Value);
             var id = cmd.ExecuteScalar();
             return Convert.ToInt32(id);
         }
@@ -50,7 +52,7 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
-                       job_order_id, created_at, updated_at
+                       job_order_id, created_at, updated_at, address
                 FROM dbo.job_requests WHERE request_id = @id";
             cmd.Parameters.AddWithValue("@id", id);
             using var r = cmd.ExecuteReader();
@@ -69,7 +71,7 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
-                       job_order_id, created_at, updated_at
+                       job_order_id, created_at, updated_at, address
                 FROM dbo.job_requests
                 WHERE user_id = @uid
                 ORDER BY created_at DESC";
@@ -91,7 +93,7 @@ namespace WebProdavnica.DAL.Impl
             cmd.CommandText = @"
                 SELECT request_id, title, description, scheduled_date, status,
                        user_id, craftsman_id, estimated_minutes, estimated_price,
-                       job_order_id, created_at, updated_at
+                       job_order_id, created_at, updated_at, address
                 FROM dbo.job_requests
                 WHERE craftsman_id = @cid
                 ORDER BY created_at DESC";

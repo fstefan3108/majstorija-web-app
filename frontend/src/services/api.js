@@ -173,6 +173,21 @@ async updateUser(id, userData) {
     return data;
   }
 
+  async uploadUserProfileImage(userId, file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const token = localStorage.getItem('accessToken');
+    const url = `${API_BASE_URL}/users/${userId}/profile-image`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload greška');
+    return data;
+  }
+
   async getJobRequest(id) {
     return this.request(`/job-requests/${id}`);
   }

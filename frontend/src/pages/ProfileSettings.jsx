@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff,
-  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown
+  User, Mail, Phone, Lock, Save, Eye, EyeOff,
+  CheckCircle, AlertCircle, Loader2, Briefcase, Clock, FileText, ChevronDown, Upload, Camera
 } from 'lucide-react';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIES } from '../constants/categories';
+import LocationInput from '../components/LocationInput';
 
 const API_BASE = "http://localhost:5114";
 const MAX_CATEGORIES = 5;
@@ -27,7 +28,12 @@ export default function ProfileSettings() {
 
   const [profileForm, setProfileForm] = useState({
     firstName: '', lastName: '', email: '', phone: '', location: '',
+    latitude: null, longitude: null, city: '',
   });
+
+  const [profileImagePath, setProfileImagePath] = useState(null);
+  const [imageUploading, setImageUploading]     = useState(false);
+  const fileInputRef = useRef(null);
 
   const [craftsmanForm, setCraftsmanForm] = useState({
     selectedCategories: [], selectedSubcategories: [],
@@ -57,12 +63,16 @@ export default function ProfileSettings() {
 
         if (json.success) {
           const d = json.data;
+          setProfileImagePath(d.profileImagePath ?? null);
           setProfileForm({
             firstName: d.firstName || '',
             lastName: d.lastName || '',
             email: d.email || '',
             phone: d.phone || '',
             location: d.location || '',
+            latitude: d.latitude ?? null,
+            longitude: d.longitude ?? null,
+            city: d.city || '',
           });
 
           if (isCraftsman) {
@@ -93,6 +103,37 @@ export default function ProfileSettings() {
 
   const clearMessages = () => { setError(null); setSuccess(null); };
 
+  // ─── Upload profilne slike ────────────────────────────────────────────────
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) { setError('Dozvoljeni formati: JPG, PNG, WEBP.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setError('Slika ne sme biti veća od 5MB.'); return; }
+
+    setImageUploading(true);
+    clearMessages();
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const endpoint = isCraftsman
+        ? `${API_BASE}/api/craftsmen/${user.id}/profile-image`
+        : `${API_BASE}/api/users/${user.id}/profile-image`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Upload nije uspeo');
+      setProfileImagePath(json.imagePath);
+      setSuccess('Profilna slika uspešno ažurirana!');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
   // ─── Snimanje ličnih podataka ─────────────────────────────────────────────
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -115,7 +156,16 @@ export default function ProfileSettings() {
         };
       } else {
         endpoint = `${API_BASE}/api/users/${user.id}/profile`;
-        body = profileForm;
+        body = {
+          firstName: profileForm.firstName,
+          lastName: profileForm.lastName,
+          email: profileForm.email,
+          phone: profileForm.phone,
+          location: profileForm.location,
+          latitude: profileForm.latitude,
+          longitude: profileForm.longitude,
+          city: profileForm.city,
+        };
       }
 
       const res = await fetch(endpoint, {
@@ -129,6 +179,9 @@ export default function ProfileSettings() {
       updateUser({
         name: `${profileForm.firstName} ${profileForm.lastName}`,
         email: profileForm.email,
+        location: profileForm.latitude
+          ? { name: profileForm.location, lat: profileForm.latitude, lng: profileForm.longitude }
+          : null,
       });
       setSuccess('Profil uspešno ažuriran!');
     } catch (err) {
@@ -237,8 +290,38 @@ export default function ProfileSettings() {
 
           {/* Header */}
           <div className="flex items-center gap-5 mb-8">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-              {initials}
+            {/* Avatar + upload dugme */}
+            <div className="relative flex-shrink-0">
+              {profileImagePath ? (
+                <img
+                  src={`${API_BASE}${profileImagePath}`}
+                  alt={initials}
+                  className="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-gray-700"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  {initials}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={imageUploading}
+                className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center shadow-lg transition disabled:opacity-50"
+                title="Promeni profilnu sliku"
+              >
+                {imageUploading
+                  ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  : <Camera className="w-4 h-4 text-white" />
+                }
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={e => handleImageUpload(e.target.files?.[0])}
+              />
             </div>
             <div>
               <h1 className="text-3xl font-bold text-white">{user?.name}</h1>
@@ -312,10 +395,17 @@ export default function ProfileSettings() {
               </div>
 
               <div>
-                <label className="flex items-center gap-2 text-gray-400 text-sm mb-2"><MapPin className="w-4 h-4" /> Lokacija</label>
-                <input type="text" value={profileForm.location}
-                  onChange={e => setProfileForm({ ...profileForm, location: e.target.value })}
-                  className={inputCls} />
+                <label className="flex items-center gap-2 text-gray-400 text-sm mb-2">Lokacija</label>
+                <LocationInput
+                  value={profileForm.latitude ? { name: profileForm.location, lat: profileForm.latitude, lng: profileForm.longitude } : (profileForm.location ? { name: profileForm.location } : null)}
+                  onChange={(loc) => setProfileForm(prev => ({
+                    ...prev,
+                    location: loc?.name ?? '',
+                    latitude: loc?.lat ?? null,
+                    longitude: loc?.lng ?? null,
+                    city: loc?.name?.split(',')[0]?.trim() ?? '',
+                  }))}
+                />
               </div>
 
               <button type="submit" disabled={loading}

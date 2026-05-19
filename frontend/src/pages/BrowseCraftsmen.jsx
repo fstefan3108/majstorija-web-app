@@ -13,6 +13,31 @@ import { CATEGORIES } from '../constants/categories';
 
 const API_BASE = 'http://localhost:5114';
 
+const LATIN_CYRILLIC = [
+  ['lj','љ'],['nj','њ'],['dž','џ'],['dj','ђ'],
+  ['a','а'],['b','б'],['v','в'],['g','г'],['d','д'],
+  ['đ','ђ'],['e','е'],['ž','ж'],['z','з'],['i','и'],
+  ['j','ј'],['k','к'],['l','л'],['m','м'],['n','н'],
+  ['o','о'],['p','п'],['r','р'],['s','с'],['t','т'],
+  ['ć','ћ'],['u','у'],['f','ф'],['h','х'],['c','ц'],
+  ['č','ч'],['š','ш'],
+];
+
+function latinToCyrillic(str) {
+  let s = str.toLowerCase();
+  for (const [lat, cyr] of LATIN_CYRILLIC) s = s.replaceAll(lat, cyr);
+  return s;
+}
+
+function locationMatch(craftsman, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  const qCyr = latinToCyrillic(q);
+  const loc  = (craftsman.location ?? '').toLowerCase();
+  const city = (craftsman.city ?? '').toLowerCase();
+  return loc.includes(q) || loc.includes(qCyr) || city.includes(q) || city.includes(qCyr);
+}
+
 const StarRating = ({ rating }) => {
   const rounded = Math.round(rating * 2) / 2;
   return (
@@ -116,25 +141,43 @@ export default function BrowseCraftsmen() {
 
   const [craftsmen, setCraftsmen] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('rating');
   const [selectedCraftsman, setSelectedCraftsman] = useState(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  const defaultFilters = { location: '', minPrice: '', maxPrice: '', minRating: 0 };
+  const userLocation = user?.location ?? null;
+  const hasCoords    = !!(userLocation?.lat && userLocation?.lng);
+
+  const defaultFilters = { location: '', minPrice: '', maxPrice: '', minRating: 0, radius: hasCoords ? 20 : null };
   const [filters, setFilters] = useState(defaultFilters);
 
   const hasActiveFilters =
     filters.location !== '' || filters.minPrice !== '' ||
-    filters.maxPrice !== '' || filters.minRating !== 0;
+    filters.maxPrice !== '' || filters.minRating !== 0 ||
+    (filters.radius != null && filters.radius !== defaultFilters.radius);
 
   useEffect(() => {
     if (!subcategorySlug) return;
     const load = async () => {
-      setLoading(true);
+      if (craftsmen.length === 0) setLoading(true);
+      else setIsFetching(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/craftsmen?subcategory=${encodeURIComponent(subcategorySlug)}`);
+        let url;
+        if (hasCoords && filters.radius) {
+          const params = new URLSearchParams({
+            lat:    userLocation.lat,
+            lng:    userLocation.lng,
+            radius: filters.radius,
+            subcategory: subcategorySlug,
+          });
+          url = `${API_BASE}/api/craftsmen?${params}`;
+        } else {
+          url = `${API_BASE}/api/craftsmen?subcategory=${encodeURIComponent(subcategorySlug)}`;
+        }
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Greška pri učitavanju majstora');
         const json = await res.json();
         setCraftsmen(json.data || []);
@@ -142,20 +185,23 @@ export default function BrowseCraftsmen() {
         setError(err.message);
       } finally {
         setLoading(false);
+        setIsFetching(false);
       }
     };
     load();
-  }, [subcategorySlug]);
+  }, [subcategorySlug, filters.radius]);
 
   const filteredAndSorted = [...craftsmen]
     .filter((c) => {
-      if (filters.location && !c.location?.toLowerCase().includes(filters.location.toLowerCase())) return false;
+      if (!locationMatch(c, filters.location)) return false;
       if (filters.minPrice && c.hourlyRate < Number(filters.minPrice)) return false;
       if (filters.maxPrice && c.hourlyRate > Number(filters.maxPrice)) return false;
       if (filters.minRating && (c.averageRating ?? 0) < filters.minRating) return false;
       return true;
     })
     .sort((a, b) => {
+      // Ako je aktivan radius, redosled dolazi sa backenda (po udaljenosti)
+      if (hasCoords && filters.radius && !filters.location) return 0;
       switch (sortBy) {
         case 'rating':     return (b.averageRating ?? 0) - (a.averageRating ?? 0);
         case 'price_asc':  return a.hourlyRate - b.hourlyRate;
@@ -207,7 +253,7 @@ export default function BrowseCraftsmen() {
               </button>
             </div>
             <div className="p-4">
-              <CraftsmenFilter filters={filters} onChange={setFilters} onReset={() => setFilters(defaultFilters)} hasActiveFilters={hasActiveFilters} />
+              <CraftsmenFilter filters={filters} onChange={setFilters} onReset={() => setFilters(defaultFilters)} hasActiveFilters={hasActiveFilters} hasCoords={hasCoords} />
             </div>
           </div>
         </div>
@@ -258,16 +304,16 @@ export default function BrowseCraftsmen() {
           <div className="flex gap-8 items-start">
 
             {/* Left sidebar */}
-            {!loading && !error && craftsmen.length > 0 && (
+            {!loading && !error && (
               <aside className="hidden lg:block w-64 xl:w-72 flex-shrink-0 sticky top-6 self-start">
-                <CraftsmenFilter filters={filters} onChange={setFilters} onReset={() => setFilters(defaultFilters)} hasActiveFilters={hasActiveFilters} />
+                <CraftsmenFilter filters={filters} onChange={setFilters} onReset={() => setFilters(defaultFilters)} hasActiveFilters={hasActiveFilters} hasCoords={hasCoords} />
               </aside>
             )}
 
             <div className="flex-1 min-w-0">
 
               {/* Sort / filter toolbar */}
-              {!loading && !error && craftsmen.length > 0 && (
+              {!loading && !error && (
                 <div className="flex flex-wrap items-center gap-3 mb-6">
                   <button
                     onClick={() => setMobileFilterOpen(true)}
@@ -340,7 +386,7 @@ export default function BrowseCraftsmen() {
 
               {/* Grid */}
               {!loading && !error && filteredAndSorted.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 transition-opacity duration-300 ${isFetching ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                   {filteredAndSorted.map((craftsman) => (
                     <CraftsmanCard
                       key={craftsman.craftsmanId}

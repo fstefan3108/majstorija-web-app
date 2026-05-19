@@ -21,15 +21,16 @@ const extractUserFromToken = (accessToken) => {
     decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']
     || decoded.role;
 
-  // Koristimo localStorage vrednosti ako postoje (korisnik je promenio podatke)
-  const name = localStorage.getItem('userName') || nameFromToken;
-  const email = localStorage.getItem('userEmail') || emailFromToken;
+  const name     = localStorage.getItem('userName')  || nameFromToken;
+  const email    = localStorage.getItem('userEmail') || emailFromToken;
+  const locRaw   = localStorage.getItem('userLocation');
+  const location = locRaw ? JSON.parse(locRaw) : null;
 
-  return { id, email, name, role, accessToken };
+  return { id, email, name, role, accessToken, location };
 };
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,22 +45,46 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userName');
         localStorage.removeItem('userEmail');
+        localStorage.removeItem('userLocation');
       }
     }
     setLoading(false);
   }, []);
 
-  const login = (authResponse) => {
+  const login = async (authResponse) => {
     localStorage.setItem('accessToken', authResponse.accessToken);
-    localStorage.setItem('refreshToken', authResponse.refreshToken);
-    // Brišemo stare vrednosti da ne bi pregazile podatke novog korisnika
+    if (authResponse.refreshToken) {
+      localStorage.setItem('refreshToken', authResponse.refreshToken);
+    }
     localStorage.removeItem('userName');
     localStorage.removeItem('userEmail');
+    localStorage.removeItem('userLocation');
     try {
       const userData = extractUserFromToken(authResponse.accessToken);
-      // Čuvamo ime i email u localStorage
       localStorage.setItem('userName', userData.name);
       localStorage.setItem('userEmail', userData.email);
+
+      // Fetch profila iz baze da dobijemo koordinate
+      const endpoint = userData.role === 'Craftsman'
+        ? `http://localhost:5114/api/craftsmen/${userData.id}`
+        : `http://localhost:5114/api/users/${userData.id}`;
+
+      try {
+        const res = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${authResponse.accessToken}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const p = json.data;
+          if (p?.latitude && p?.longitude) {
+            const location = { name: p.location || p.city || '', lat: p.latitude, lng: p.longitude };
+            localStorage.setItem('userLocation', JSON.stringify(location));
+            setUser({ ...userData, location });
+            return;
+          }
+        }
+      } catch { /* nema lokacije, nastavlja se bez nje */ }
+
       setUser(userData);
     } catch (error) {
       console.error('Error decoding token on login:', error);
@@ -69,9 +94,15 @@ export function AuthProvider({ children }) {
   const updateUser = (updatedFields) => {
     setUser(prev => {
       const updated = { ...prev, ...updatedFields };
-      // Ažuriramo localStorage da preživi page reload
-      if (updatedFields.name) localStorage.setItem('userName', updatedFields.name);
-      if (updatedFields.email) localStorage.setItem('userEmail', updatedFields.email);
+      if (updatedFields.name)     localStorage.setItem('userName', updatedFields.name);
+      if (updatedFields.email)    localStorage.setItem('userEmail', updatedFields.email);
+      if ('location' in updatedFields) {
+        if (updatedFields.location) {
+          localStorage.setItem('userLocation', JSON.stringify(updatedFields.location));
+        } else {
+          localStorage.removeItem('userLocation');
+        }
+      }
       return updated;
     });
   };
@@ -81,6 +112,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('userName');
     localStorage.removeItem('userEmail');
+    localStorage.removeItem('userLocation');
     setUser(null);
   };
 

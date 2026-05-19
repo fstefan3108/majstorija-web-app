@@ -65,6 +65,7 @@ namespace WebProdavnica.API.Controllers
                 ScheduledDate = dto.ScheduledDate,
                 UserId        = dto.UserId,
                 CraftsmanId   = dto.CraftsmanId,
+                Address       = dto.Address,
             };
 
             var id = _service.Create(req);
@@ -229,6 +230,7 @@ namespace WebProdavnica.API.Controllers
             jobOrderId       = r.JobOrderId,
             createdAt        = r.CreatedAt,
             imagePaths       = r.ImagePaths,
+            address          = r.Address,
         };
     }
 }

@@ -57,7 +57,7 @@ const Login = () => {
       }
 
       const data = json.data;
-      login(data);
+      await login(data);
       navigate(data.role === 'Craftsman' ? '/workers/dashboard' : '/');
 
     } catch {
@@ -84,7 +84,7 @@ const Login = () => {
         setErrors([json.message || 'Google prijava nije uspela']);
         return;
       }
-      login(json.data);
+      await login(json.data);
       navigate(json.data.role === 'Craftsman' ? '/workers/dashboard' : '/');
     } catch {
       setErrors(['Greška pri Google prijavi. Pokušajte ponovo.']);

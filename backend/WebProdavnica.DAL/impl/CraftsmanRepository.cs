@@ -13,7 +13,8 @@ namespace WebProdavnica.DAL.Impl
             password_hash, refresh_token, refresh_token_expiry, average_rating, rating_count,
             professions, work_experience_description, profile_image_path, google_id,
             password_reset_token, password_reset_token_expiry,
-            is_verified, verification_token, verification_token_expiry";
+            is_verified, verification_token, verification_token_expiry,
+            latitude, longitude, city";
 
         public bool Add(Craftsman c)
         {
@@ -24,8 +25,9 @@ namespace WebProdavnica.DAL.Impl
                 (first_name, last_name, email, phone, location, profession,
                  experience, hourly_rate, working_hours, password_hash,
                  professions, work_experience_description, google_id,
-                 is_verified, verification_token, verification_token_expiry)
-                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph, @profs, @wed, @gid, @iv, @vt, @vte)";
+                 is_verified, verification_token, verification_token_expiry,
+                 latitude, longitude, city)
+                VALUES(@fn, @ln, @e, @p, @l, @pr, @ex, @hr, @wh, @ph, @profs, @wed, @gid, @iv, @vt, @vte, @lat, @lng, @city)";
 
             var professionsStr = c.Professions.Count > 0
                 ? string.Join(",", c.Professions)
@@ -48,6 +50,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@iv", c.IsVerified);
             cmd.Parameters.AddWithValue("@vt", (object?)c.VerificationToken ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@vte", (object?)c.VerificationTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lat", (object?)c.Latitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lng", (object?)c.Longitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@city", (object?)c.City ?? DBNull.Value);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -130,7 +135,8 @@ namespace WebProdavnica.DAL.Impl
                 average_rating=@ar, rating_count=@rc,
                 professions=@profs, work_experience_description=@wed,
                 profile_image_path=@pip, google_id=@gid,
-                password_reset_token=@prt, password_reset_token_expiry=@prte
+                password_reset_token=@prt, password_reset_token_expiry=@prte,
+                latitude=@lat, longitude=@lng, city=@city
                 WHERE craftsman_id=@id";
 
             var professionsStr = c.Professions.Count > 0
@@ -158,6 +164,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@gid", (object?)c.GoogleId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@prt", (object?)c.PasswordResetToken ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@prte", (object?)c.PasswordResetTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lat", (object?)c.Latitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lng", (object?)c.Longitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@city", (object?)c.City ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@id", c.CraftsmanId);
 
             return cmd.ExecuteNonQuery() > 0;
@@ -303,17 +312,10 @@ namespace WebProdavnica.DAL.Impl
             using SqlConnection conn = new(DataBaseConstant.ConnectionString);
             conn.Open();
             SqlCommand cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                SELECT
-                    c.craftsman_id, c.first_name, c.last_name, c.email, c.phone,
-                    c.location, c.profession, c.experience, c.hourly_rate, c.working_hours,
-                    c.password_hash, c.refresh_token, c.refresh_token_expiry, c.average_rating, c.rating_count,
-                    c.professions, c.work_experience_description, c.profile_image_path, c.google_id,
-                    c.password_reset_token, c.password_reset_token_expiry,
-                    c.is_verified, c.verification_token, c.verification_token_expiry
-                FROM dbo.craftsmen c
-                WHERE c.is_verified = 1
-                  AND c.craftsman_id IN (
+            cmd.CommandText = $@"
+                SELECT {SelectColumns}
+                FROM dbo.craftsmen
+                WHERE craftsman_id IN (
                       SELECT DISTINCT cs.craftsman_id
                       FROM dbo.craftsman_subcategories cs
                       JOIN dbo.subcategories s ON s.subcategory_id = cs.subcategory_id
@@ -325,9 +327,49 @@ namespace WebProdavnica.DAL.Impl
             return list;
         }
 
+        public List<Craftsman> GetByRadius(decimal lat, decimal lng, double radiusKm)
+        {
+            var list = new List<Craftsman>();
+            using SqlConnection conn = new(DataBaseConstant.ConnectionString);
+            conn.Open();
+            SqlCommand cmd = conn.CreateCommand();
+            // Haversine formula u SQL-u — vraća majstore sa koordinatama unutar radijusa,
+            // zatim na kraju dodaje majstore bez koordinata
+            cmd.CommandText = $@"
+                SELECT {SelectColumns},
+                    CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+                        THEN 6371.0 * 2 * ASIN(SQRT(
+                            POWER(SIN((RADIANS(CAST(latitude AS FLOAT)) - RADIANS(@lat)) / 2), 2) +
+                            COS(RADIANS(@lat)) * COS(RADIANS(CAST(latitude AS FLOAT))) *
+                            POWER(SIN((RADIANS(CAST(longitude AS FLOAT)) - RADIANS(@lng)) / 2), 2)
+                        ))
+                        ELSE NULL
+                    END AS distance_km
+                FROM dbo.craftsmen
+                WHERE (
+                    (latitude IS NOT NULL AND longitude IS NOT NULL AND
+                     6371.0 * 2 * ASIN(SQRT(
+                         POWER(SIN((RADIANS(CAST(latitude AS FLOAT)) - RADIANS(@lat)) / 2), 2) +
+                         COS(RADIANS(@lat)) * COS(RADIANS(CAST(latitude AS FLOAT))) *
+                         POWER(SIN((RADIANS(CAST(longitude AS FLOAT)) - RADIANS(@lng)) / 2), 2)
+                     )) <= @radius)
+                    OR (latitude IS NULL OR longitude IS NULL)
+                )
+                ORDER BY
+                    CASE WHEN latitude IS NULL OR longitude IS NULL THEN 1 ELSE 0 END,
+                    distance_km ASC";
+
+            cmd.Parameters.AddWithValue("@lat", (double)lat);
+            cmd.Parameters.AddWithValue("@lng", (double)lng);
+            cmd.Parameters.AddWithValue("@radius", radiusKm);
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(MapCraftsman(r));
+            return list;
+        }
+
         private static Craftsman MapCraftsman(SqlDataReader r)
         {
-            // Ucitaj professions string, fallback na profession kolonu
             var professionsRaw = r["professions"] as string;
             var professionFallback = r["profession"] as string;
             var professionsStr = !string.IsNullOrWhiteSpace(professionsRaw)
@@ -365,7 +407,10 @@ namespace WebProdavnica.DAL.Impl
                 PasswordResetTokenExpiry = r["password_reset_token_expiry"] as DateTime?,
                 IsVerified = r["is_verified"] != DBNull.Value && (bool)r["is_verified"],
                 VerificationToken = r["verification_token"] as string,
-                VerificationTokenExpiry = r["verification_token_expiry"] as DateTime?
+                VerificationTokenExpiry = r["verification_token_expiry"] as DateTime?,
+                Latitude = r["latitude"] as decimal?,
+                Longitude = r["longitude"] as decimal?,
+                City = r["city"] as string,
             };
         }
     }

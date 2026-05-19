@@ -6,7 +6,8 @@ export default function EstimateModal({ onConfirm, onCancel, loading }) {
   const [minutes, setMinutes] = useState(0);
 
   const totalMinutes = hours * 60 + minutes;
-  const isValid = totalMinutes >= 15;
+  const isValid = totalMinutes >= 15 && hours <= 8;
+  const overLimit = hours > 8;
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
@@ -22,10 +23,10 @@ export default function EstimateModal({ onConfirm, onCancel, loading }) {
             <input
               type="number"
               min={0}
-              max={23}
+              max={8}
               value={hours}
               onChange={(e) =>
-                setHours(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))
+                setHours(Math.max(0, Math.min(8, parseInt(e.target.value) || 0)))
               }
               className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2.5 text-white text-center text-lg font-bold focus:outline-none focus:border-blue-500 transition"
             />
@@ -49,8 +50,11 @@ export default function EstimateModal({ onConfirm, onCancel, loading }) {
           </div>
         </div>
 
-        {!isValid && (
+        {!isValid && !overLimit && (
           <p className="text-red-400 text-xs mb-4">Minimum je 15 minuta.</p>
+        )}
+        {overLimit && (
+          <p className="text-red-400 text-xs mb-4">Maksimalno trajanje posla je 8 sati.</p>
         )}
 
         <div className="flex gap-3 mt-6">

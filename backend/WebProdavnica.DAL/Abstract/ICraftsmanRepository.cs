@@ -18,6 +18,8 @@ namespace WebProdavnica.DAL.Abstract
         bool Delete(int id);
         bool UpdateRating(int craftsmanId);
 
+        List<Craftsman> GetByRadius(decimal lat, decimal lng, double radiusKm);
+
         // Podkategorije
         bool SaveSubcategories(int craftsmanId, List<string> subcategoryIds);
         List<string> GetSubcategories(int craftsmanId);

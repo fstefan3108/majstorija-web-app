@@ -18,6 +18,7 @@ namespace WebProdavnica.Entities
         // Popunjava sistem nakon potvrde i placanja
         public int? JobOrderId { get; set; }
 
+        public string? Address { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 

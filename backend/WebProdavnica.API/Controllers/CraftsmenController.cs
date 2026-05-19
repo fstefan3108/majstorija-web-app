@@ -19,13 +19,28 @@ namespace WebProdavnica.API.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetAll([FromQuery] string? subcategory)
+        public IActionResult GetAll(
+            [FromQuery] string? subcategory,
+            [FromQuery] decimal? lat,
+            [FromQuery] decimal? lng,
+            [FromQuery] double? radius)
         {
             try
             {
-                var craftsmen = string.IsNullOrWhiteSpace(subcategory)
-                    ? _craftsmanService.GetAll()
-                    : _craftsmanService.GetBySubcategorySlug(subcategory);
+                List<Craftsman> craftsmen;
+
+                if (lat.HasValue && lng.HasValue && radius.HasValue)
+                {
+                    craftsmen = _craftsmanService.GetByRadius(lat.Value, lng.Value, radius.Value, subcategory);
+                }
+                else if (!string.IsNullOrWhiteSpace(subcategory))
+                {
+                    craftsmen = _craftsmanService.GetBySubcategorySlug(subcategory);
+                }
+                else
+                {
+                    craftsmen = _craftsmanService.GetAll();
+                }
 
                 return Ok(new { success = true, data = craftsmen, count = craftsmen.Count });
             }
@@ -68,6 +83,9 @@ namespace WebProdavnica.API.Controllers
                         craftsman.RatingCount,
                         craftsman.ProfileImagePath,
                         craftsman.IsVerified,
+                        craftsman.Latitude,
+                        craftsman.Longitude,
+                        craftsman.City,
                         subcategories,
                         categories,
                     }
@@ -122,6 +140,9 @@ namespace WebProdavnica.API.Controllers
                 craftsman.Email = request.Email;
                 craftsman.Phone = request.Phone;
                 craftsman.Location = request.Location;
+                craftsman.Latitude = request.Latitude;
+                craftsman.Longitude = request.Longitude;
+                craftsman.City = request.City;
                 craftsman.Experience = request.Experience;
                 craftsman.HourlyRate = request.HourlyRate;
                 craftsman.WorkingHours = request.WorkingHours;

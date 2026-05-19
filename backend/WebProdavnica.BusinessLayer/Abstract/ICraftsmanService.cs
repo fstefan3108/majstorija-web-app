@@ -13,6 +13,7 @@ namespace WebProdavnica.BusinessLayer.Abstract
         List<Craftsman> GetByProfession(string profession);
         List<Craftsman> GetByLocation(string location);
         List<Craftsman> Search(string? profession, string? location, decimal? maxRate, decimal? minRating);
+        List<Craftsman> GetByRadius(decimal lat, decimal lng, double radiusKm, string? subcategory = null);
 
         // Podkategorije
         bool SaveSubcategories(int craftsmanId, List<string> subcategoryIds);

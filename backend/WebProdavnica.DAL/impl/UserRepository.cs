@@ -14,7 +14,8 @@ namespace WebProdavnica.DAL.Impl
             password_hash, location, created_at,
             refresh_token, refresh_token_expiry,
             google_id, password_reset_token, password_reset_token_expiry, profile_image_path,
-            is_verified, verification_token, verification_token_expiry";
+            is_verified, verification_token, verification_token_expiry,
+            latitude, longitude, city";
 
         public bool Add(User u)
         {
@@ -23,8 +24,9 @@ namespace WebProdavnica.DAL.Impl
             SqlCommand cmd = conn.CreateCommand();
             cmd.CommandText = @"INSERT INTO dbo.users
                 (first_name, last_name, email, phone, password_hash, location, created_at, google_id,
-                 is_verified, verification_token, verification_token_expiry)
-                VALUES(@fn, @ln, @e, @p, @ph, @l, @ca, @gid, @iv, @vt, @vte)";
+                 is_verified, verification_token, verification_token_expiry,
+                 latitude, longitude, city)
+                VALUES(@fn, @ln, @e, @p, @ph, @l, @ca, @gid, @iv, @vt, @vte, @lat, @lng, @city)";
 
             cmd.Parameters.AddWithValue("@fn", u.FirstName);
             cmd.Parameters.AddWithValue("@ln", u.LastName);
@@ -37,6 +39,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@iv", u.IsVerified);
             cmd.Parameters.AddWithValue("@vt", (object?)u.VerificationToken ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@vte", (object?)u.VerificationTokenExpiry ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lat", (object?)u.Latitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lng", (object?)u.Longitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@city", (object?)u.City ?? DBNull.Value);
 
             return cmd.ExecuteNonQuery() > 0;
         }
@@ -116,7 +121,7 @@ namespace WebProdavnica.DAL.Impl
                 first_name=@fn, last_name=@ln, email=@e, phone=@p, location=@l,
                 password_hash=@ph, refresh_token=@rt, refresh_token_expiry=@rte,
                 google_id=@gid, password_reset_token=@prt, password_reset_token_expiry=@prte,
-                profile_image_path=@pip
+                profile_image_path=@pip, latitude=@lat, longitude=@lng, city=@city
                 WHERE user_id=@id";
 
             cmd.Parameters.AddWithValue("@fn", u.FirstName);
@@ -131,6 +136,9 @@ namespace WebProdavnica.DAL.Impl
             cmd.Parameters.AddWithValue("@prt", (object?)u.PasswordResetToken ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@prte", (object?)u.PasswordResetTokenExpiry ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@pip", (object?)u.ProfileImagePath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lat", (object?)u.Latitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lng", (object?)u.Longitude ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@city", (object?)u.City ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@id", u.UserId);
 
             return cmd.ExecuteNonQuery() > 0;
@@ -200,7 +208,10 @@ namespace WebProdavnica.DAL.Impl
                 ProfileImagePath = r["profile_image_path"] as string,
                 IsVerified = r["is_verified"] != DBNull.Value && (bool)r["is_verified"],
                 VerificationToken = r["verification_token"] as string,
-                VerificationTokenExpiry = r["verification_token_expiry"] as DateTime?
+                VerificationTokenExpiry = r["verification_token_expiry"] as DateTime?,
+                Latitude = r["latitude"] as decimal?,
+                Longitude = r["longitude"] as decimal?,
+                City = r["city"] as string,
             };
         }
     }

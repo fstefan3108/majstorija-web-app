@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   X, Loader2, Calendar, AlertTriangle, Clock,
-  Image, CheckCircle, XCircle
+  Image, CheckCircle, XCircle, MapPin
 } from "lucide-react";
 import api from "../../services/api";
 import ImageLightbox from "./modals/ImageLightbox";
@@ -186,6 +186,16 @@ export default function JobRequestModal({ requestId, onClose, onActionDone }) {
                     </span>
                   </div>
                 </div>
+
+                {/* Adresa */}
+                {request.address && (
+                  <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+                    <h4 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" /> Adresa izvođenja posla
+                    </h4>
+                    <p className="text-white">{request.address}</p>
+                  </div>
+                )}
 
                 {/* Opis */}
                 <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">

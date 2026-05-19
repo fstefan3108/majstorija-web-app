@@ -6,12 +6,12 @@ namespace WebProdavnica.Entities.DTOs
     {
         [Required(ErrorMessage = "Ime je obavezno")]
         [StringLength(50, MinimumLength = 2, ErrorMessage = "Ime mora imati između 2 i 50 karaktera")]
-        [RegularExpression(@"^[a-zA-ZčćđšžČĆĐŠŽ\s]+$", ErrorMessage = "Ime sme sadržati samo slova")]
+        [RegularExpression(@"^[a-zA-ZčćđšžČĆĐŠŽЀ-ӿ\s\-]+$", ErrorMessage = "Ime sme sadržati samo slova")]
         public string FirstName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Prezime je obavezno")]
         [StringLength(50, MinimumLength = 2, ErrorMessage = "Prezime mora imati između 2 i 50 karaktera")]
-        [RegularExpression(@"^[a-zA-ZčćđšžČĆĐŠŽ\s]+$", ErrorMessage = "Prezime sme sadržati samo slova")]
+        [RegularExpression(@"^[a-zA-ZčćđšžČĆĐŠŽЀ-ӿ\s\-]+$", ErrorMessage = "Prezime sme sadržati samo slova")]
         public string LastName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email je obavezan")]
@@ -33,6 +33,12 @@ namespace WebProdavnica.Entities.DTOs
 
         [StringLength(100, ErrorMessage = "Lokacija ne sme biti duža od 100 karaktera")]
         public string Location { get; set; } = string.Empty;
+
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
+
+        [StringLength(200)]
+        public string? City { get; set; }
 
         // Opciono — popunjava se kada korisnik registruje nalog putem Google OAuth
         public string? GoogleId { get; set; }

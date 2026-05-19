@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Briefcase, Clock,
+  Mail, Lock, Eye, EyeOff, User, Phone, Briefcase, Clock,
   Upload, X, CheckCircle, ChevronLeft, ChevronRight, FileText, ChevronDown
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
@@ -10,6 +10,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIES } from '../constants/categories';
+import LocationInput from '../components/LocationInput';
 
 const API_BASE = "http://localhost:5114";
 const MAX_CATEGORIES = 5;
@@ -41,6 +42,7 @@ export default function Register() {
     userType: 'user',
     firstName: '', lastName: '', email: '', phone: '',
     password: '', confirmPassword: '', location: '',
+    latitude: null, longitude: null, city: '',
     agreeToTerms: false,
     // Majstor — nove kategorije/podkategorije
     selectedCategories: [],   // IDs kategorija (max 5)
@@ -226,6 +228,9 @@ export default function Register() {
           phone: normalizePhone(formData.phone),
           password: formData.password,
           location: formData.location,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          city: formData.city || null,
           subcategories: formData.selectedSubcategories,
           categories: formData.selectedCategories,
           experience: parseInt(formData.experience) || 0,
@@ -243,6 +248,9 @@ export default function Register() {
           phone: normalizePhone(formData.phone),
           password: formData.password,
           location: formData.location || '',
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          city: formData.city || null,
           googleId: formData.googleId || null,
         };
       }
@@ -426,13 +434,18 @@ export default function Register() {
                   <label className="block text-gray-300 mb-1 text-sm">
                     Lokacija {!isWorker && <span className="text-gray-500">(opciono)</span>}
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <MapPin className="w-4 h-4 text-gray-400" />
-                    </div>
-                    <input type="text" name="location" value={formData.location} onChange={handleChange}
-                      className={inputClass(!!fieldErrors.location)} placeholder="npr. Beograd, Novi Sad..." />
-                  </div>
+                  <LocationInput
+                    value={formData.latitude ? { name: formData.location, lat: formData.latitude, lng: formData.longitude } : null}
+                    onChange={(loc) => setFormData(prev => ({
+                      ...prev,
+                      location: loc?.name ?? '',
+                      latitude: loc?.lat ?? null,
+                      longitude: loc?.lng ?? null,
+                      city: loc?.name?.split(',')[0]?.trim() ?? '',
+                    }))}
+                    required={isWorker}
+                    className={fieldErrors.location ? 'ring-1 ring-red-500 rounded-lg' : ''}
+                  />
                   {fieldErrors.location && <p className="text-red-400 text-xs mt-1">{fieldErrors.location}</p>}
                 </div>
 

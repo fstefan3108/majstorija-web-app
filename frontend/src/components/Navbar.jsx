@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, Settings, ChevronDown, MessageSquare, ClipboardList, UserCircle } from "lucide-react";
+import { LogOut, Settings, ChevronDown, MessageSquare, ClipboardList, UserCircle, CalendarDays } from "lucide-react";
 import Button from "../components/Button";
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
@@ -105,6 +105,12 @@ export default function Navbar() {
                       className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
                       <ClipboardList className="w-4 h-4" /> Pregled
                     </Link>
+                    {isCraftsman && (
+                      <Link to="/dashboard?tab=availability" onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
+                        <CalendarDays className="w-4 h-4" /> Raspored
+                      </Link>
+                    )}
                     <Link to="/profile/settings" onClick={() => setIsDropdownOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-gray-300 hover:text-white hover:bg-gray-700 transition text-sm">
                       <Settings className="w-4 h-4" /> Podešavanja naloga

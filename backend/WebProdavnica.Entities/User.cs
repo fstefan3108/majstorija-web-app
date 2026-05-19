@@ -22,6 +22,9 @@ public class User
     public string? VerificationToken { get; set; }
     public DateTime? VerificationTokenExpiry { get; set; }
     public string? ProfileImagePath { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public string? City { get; set; }
     public ICollection<JobOrder> JobOrders { get; set; } = new List<JobOrder>();
     public ICollection<Chat> Chats { get; set; } = new List<Chat>();
 }

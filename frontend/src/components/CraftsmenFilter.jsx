@@ -22,10 +22,9 @@ const Section = ({ title, children, defaultOpen = true }) => {
   );
 };
 
-
 const StarSelector = ({ value, onChange }) => {
   const options = [0, 3, 3.5, 4, 4.5];
-  const labels = ['Sve', '3+', '3.5+', '4+', '4.5+'];
+  const labels  = ['Sve', '3+', '3.5+', '4+', '4.5+'];
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((opt, i) => (
@@ -45,10 +44,19 @@ const StarSelector = ({ value, onChange }) => {
   );
 };
 
-const CraftsmenFilter = ({ filters, onChange, onReset, hasActiveFilters }) => {
+const RADIUS_OPTIONS = [
+  { label: '10 km',  value: 10  },
+  { label: '20 km',  value: 20  },
+  { label: '50 km',  value: 50  },
+  { label: '100 km', value: 100 },
+];
+
+// filters: { location, minPrice, maxPrice, minRating, radius }
+// hasCoords: boolean — da li korisnik ima koordinate (za radius search)
+const CraftsmenFilter = ({ filters, onChange, onReset, hasActiveFilters, hasCoords = false }) => {
   const [priceInputFrom, setPriceInputFrom] = useState(filters.maxPrice ? '0' : '');
-  const [priceInputTo, setPriceInputTo] = useState(filters.maxPrice || '');
-  const [sliderMax, setSliderMax] = useState(filters.maxPrice || 10000);
+  const [priceInputTo, setPriceInputTo]     = useState(filters.maxPrice || '');
+  const [sliderMax, setSliderMax]           = useState(filters.maxPrice || 10000);
 
   const ABSOLUTE_MAX = 20000;
 
@@ -99,16 +107,55 @@ const CraftsmenFilter = ({ filters, onChange, onReset, hasActiveFilters }) => {
       </div>
 
       <div className="px-5">
-        {/* LOKACIJA */}
+        {/* RADIUS / LOKACIJA */}
         <Section title="Lokacija">
-          <input
-            type="text"
-            placeholder="Unesite grad ili opštinu..."
-            value={filters.location}
-            onChange={e => onChange({ ...filters, location: e.target.value })}
-            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg px-3 py-2.5
-              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-          />
+          {hasCoords ? (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-400">
+                Pretraga po udaljenosti od Vaše lokacije:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {RADIUS_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => onChange({ ...filters, radius: opt.value })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
+                      ${filters.radius === opt.value
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : 'border-gray-600 text-gray-400 hover:border-blue-400 hover:text-white bg-gray-800'
+                      }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {filters.radius && (
+                <p className="text-xs text-blue-400">
+                  Prikazuju se majstori u radijusu od {filters.radius} km
+                </p>
+              )}
+              <div className="border-t border-gray-700/40 pt-3">
+                <p className="text-xs text-gray-500 mb-2">ili pretraži po gradu:</p>
+                <input
+                  type="text"
+                  placeholder="Unesite grad..."
+                  value={filters.location}
+                  onChange={e => onChange({ ...filters, location: e.target.value, radius: null })}
+                  className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg px-3 py-2.5
+                    placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                />
+              </div>
+            </div>
+          ) : (
+            <input
+              type="text"
+              placeholder="Unesite grad ili opštinu..."
+              value={filters.location}
+              onChange={e => onChange({ ...filters, location: e.target.value })}
+              className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg px-3 py-2.5
+                placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            />
+          )}
         </Section>
 
         {/* CENA */}
@@ -191,7 +238,6 @@ const CraftsmenFilter = ({ filters, onChange, onReset, hasActiveFilters }) => {
             </p>
           )}
         </Section>
-
       </div>
     </div>
   );

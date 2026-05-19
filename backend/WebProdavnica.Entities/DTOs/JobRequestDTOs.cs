@@ -23,6 +23,9 @@ namespace WebProdavnica.Entities.DTOs
         [Required]
         [Range(1, int.MaxValue)]
         public int CraftsmanId { get; set; }
+
+        [StringLength(500, ErrorMessage = "Adresa ne sme biti duža od 500 karaktera")]
+        public string? Address { get; set; }
     }
 
     /// <summary>Majstor prihvata zahtev i šalje procenu vremena</summary>

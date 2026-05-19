@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { MessageCircle, InboxIcon, Briefcase, History, CalendarDays } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -32,6 +32,7 @@ const TABS = [
 
 export default function WorkerDashboard() {
   const { user } = useAuth();
+  const location = useLocation();
 
   const [workerData, setWorkerData]                 = useState(null);
   const [originalWorkerData, setOriginalWorkerData] = useState(null);
@@ -40,7 +41,11 @@ export default function WorkerDashboard() {
   const [isLoading, setIsLoading]                   = useState(true);
   const [error, setError]                           = useState("");
 
-  const [activeTab, setActiveTab]                   = useState("requests");
+  const validTabIds = TABS.map(t => t.id);
+  const queryTab = new URLSearchParams(location.search).get("tab");
+  const initialTab = validTabIds.includes(queryTab) ? queryTab : "requests";
+
+  const [activeTab, setActiveTab]                   = useState(initialTab);
   const [selectedRequestId, setSelectedRequestId]   = useState(null);
   const [showAlert, setShowAlert]                   = useState(false);
 

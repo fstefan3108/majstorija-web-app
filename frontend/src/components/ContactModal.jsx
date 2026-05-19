@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Upload, Image, AlertCircle, CheckCircle, Loader2, Calendar, FileText, AlignLeft, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Upload, Image, AlertCircle, CheckCircle, Loader2, Calendar, FileText, AlignLeft, Clock, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import api from '../services/api';
 
 const MAX_IMAGES   = 5;
@@ -68,14 +68,14 @@ function MiniCalendar({ craftsmanId, selectedDate, onSelectDate, durationHours =
     <div className="bg-gray-900 rounded-xl border border-gray-700 p-3">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <button onClick={prev} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition">
+        <button type="button" onClick={prev} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition">
           <ChevronLeft className="w-4 h-4" />
         </button>
         <span className="text-white text-sm font-semibold">
           {MONTH_NAMES[month]} {year}
           {loadingCal && <span className="ml-2 text-gray-500 text-xs">...</span>}
         </span>
-        <button onClick={next} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition">
+        <button type="button" onClick={next} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition">
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
@@ -103,6 +103,7 @@ function MiniCalendar({ craftsmanId, selectedDate, onSelectDate, durationHours =
 
           return (
             <button
+              type="button"
               key={dk}
               onClick={() => { if (isWorking) onSelectDate(dk); }}
               disabled={!isWorking}
@@ -170,6 +171,7 @@ function TimeSlotPicker({ craftsmanId, selectedDate, selectedTime, onSelectTime,
         <div className="flex flex-wrap gap-2">
           {slots.map(t => (
             <button
+              type="button"
               key={t}
               onClick={() => onSelectTime(t)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
@@ -191,6 +193,7 @@ function TimeSlotPicker({ craftsmanId, selectedDate, selectedTime, onSelectTime,
 export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
   const [title,         setTitle]         = useState('');
   const [description,   setDescription]   = useState('');
+  const [address,       setAddress]       = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
   const [images,        setImages]        = useState([]);
@@ -229,6 +232,7 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
     setError('');
     if (!title.trim())                     { setError('Unesite naslov.'); return; }
     if (description.trim().length < 10)    { setError('Opis mora imati najmanje 10 karaktera.'); return; }
+    if (!address.trim())                   { setError('Unesite adresu izvođenja posla.'); return; }
     if (!scheduledDate)                    { setError('Odaberite datum.'); return; }
     if (!scheduledTime)                    { setError('Odaberite termin (sat).'); return; }
 
@@ -240,6 +244,7 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
       const res = await api.createJobRequest({
         title:         title.trim(),
         description:   description.trim(),
+        address:       address.trim(),
         scheduledDate: isoDateTime,
         userId:        user.id,
         craftsmanId:   craftsman.craftsmanId,
@@ -322,6 +327,21 @@ export default function ContactModal({ craftsman, user, onClose, onSuccess }) {
               className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition text-sm resize-none"
             />
             <p className="text-right text-xs text-gray-500 mt-1">{description.length}/2000</p>
+          </div>
+
+          {/* Adresa izvođenja posla */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1.5">
+              <MapPin className="w-4 h-4" /> Adresa izvođenja posla <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="npr. Bulevar Kralja Aleksandra 75, Beograd"
+              maxLength={500}
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition text-sm"
+            />
           </div>
 
           {/* Kalendar — biranje termina */}
